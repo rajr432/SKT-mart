@@ -14,25 +14,19 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     if (!ready) return;
     if (!user) router.push("/login?next=/vendor");
     else if (user.role === "CUSTOMER") router.push("/vendor/onboarding");
-  }, [ready, user]);
+  }, [ready, user, router]);
 
   if (path === "/vendor/onboarding") return <>{children}</>;
 
   return (
-    <div className="container-page py-4 grid md:grid-cols-[200px_1fr] gap-4">
-      <aside className="card p-3 text-sm space-y-1 h-fit">
-        <Link href="/vendor" className="block px-3 py-2 rounded hover:bg-gray-100">
-          Dashboard
-        </Link>
-        <Link href="/vendor/products" className="block px-3 py-2 rounded hover:bg-gray-100">
-          Products
-        </Link>
-        <Link href="/vendor/products/new" className="block px-3 py-2 rounded hover:bg-gray-100">
-          + Add Product
-        </Link>
-        <Link href="/vendor/orders" className="block px-3 py-2 rounded hover:bg-gray-100">
-          Orders
-        </Link>
+    <div className="container-page py-4 grid md:grid-cols-[220px_1fr] gap-4">
+      <aside className="card p-3 text-sm space-y-1 h-fit sticky top-4">
+        <Link href="/vendor" className="block px-3 py-2 rounded hover:bg-gray-100">Dashboard</Link>
+        <Link href="/vendor/products" className="block px-3 py-2 rounded hover:bg-gray-100">Products</Link>
+        <Link href="/vendor/products/new" className="block px-3 py-2 rounded hover:bg-gray-100">+ Add Product</Link>
+        <Link href="/vendor/orders" className="block px-3 py-2 rounded hover:bg-gray-100">Orders</Link>
+        <Link href="/vendor/wallet" className="block px-3 py-2 rounded hover:bg-gray-100">Wallet & Payouts</Link>
+        <Link href="/vendor/ads" className="block px-3 py-2 rounded hover:bg-gray-100">Ad Campaigns</Link>
       </aside>
       <div>{children}</div>
     </div>

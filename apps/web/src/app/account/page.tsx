@@ -60,19 +60,39 @@ export default function AccountPage() {
         </div>
       </div>
 
-      <div className="card p-4 grid sm:grid-cols-3 gap-3 text-center">
+      <div className="card p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
         <Link href="/orders" className="border p-4 rounded hover:bg-gray-50">
           <p className="text-2xl">📦</p>
-          <p className="mt-2 font-medium">My Orders</p>
+          <p className="mt-2 font-medium text-sm">Orders</p>
         </Link>
         <Link href="/wishlist" className="border p-4 rounded hover:bg-gray-50">
           <p className="text-2xl">♡</p>
-          <p className="mt-2 font-medium">Wishlist</p>
+          <p className="mt-2 font-medium text-sm">Wishlist</p>
+        </Link>
+        <Link href="/account/wallet" className="border p-4 rounded hover:bg-gray-50">
+          <p className="text-2xl">💳</p>
+          <p className="mt-2 font-medium text-sm">Wallet & Coins</p>
+        </Link>
+        <Link href="/account/notifications" className="border p-4 rounded hover:bg-gray-50">
+          <p className="text-2xl">🔔</p>
+          <p className="mt-2 font-medium text-sm">Notifications</p>
+        </Link>
+        <Link href="/account/returns" className="border p-4 rounded hover:bg-gray-50">
+          <p className="text-2xl">↩️</p>
+          <p className="mt-2 font-medium text-sm">Returns</p>
+        </Link>
+        <Link href="/account/referral" className="border p-4 rounded hover:bg-gray-50">
+          <p className="text-2xl">🎁</p>
+          <p className="mt-2 font-medium text-sm">Refer & Earn</p>
+        </Link>
+        <Link href="/account/giftcards" className="border p-4 rounded hover:bg-gray-50">
+          <p className="text-2xl">🪙</p>
+          <p className="mt-2 font-medium text-sm">Gift Cards</p>
         </Link>
         {user.role === "CUSTOMER" && (
           <Link href="/vendor/onboarding" className="border p-4 rounded hover:bg-gray-50">
             <p className="text-2xl">🛍️</p>
-            <p className="mt-2 font-medium">Become a Seller</p>
+            <p className="mt-2 font-medium text-sm">Become a Seller</p>
           </Link>
         )}
       </div>

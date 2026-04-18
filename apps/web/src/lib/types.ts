@@ -133,3 +133,90 @@ export interface Coupon {
   expiresAt?: string | null;
   active: boolean;
 }
+
+export interface WalletTransaction {
+  id: string;
+  type: "CREDIT" | "DEBIT";
+  reason: string;
+  amountPaise: number;
+  balanceAfter: number;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface AdCampaign {
+  id: string;
+  productId: string;
+  name: string;
+  budgetPaise: number;
+  spentPaise: number;
+  bidPaise: number;
+  startsAt: string;
+  endsAt?: string | null;
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "REJECTED";
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  keyword?: string | null;
+  product?: { name: string; images: ProductImage[] };
+}
+
+export interface Payout {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  grossSales: number;
+  totalCommission: number;
+  totalRefunds: number;
+  totalAdSpend: number;
+  netAmount: number;
+  status: "PENDING" | "PROCESSING" | "PAID" | "FAILED";
+  utr?: string | null;
+  paidAt?: string | null;
+  vendor?: { storeName: string; slug: string };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link?: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface ReturnRequest {
+  id: string;
+  rmaNumber: string;
+  orderId: string;
+  reason: string;
+  description?: string | null;
+  refundMode: string;
+  status: string;
+  refundPaise: number;
+  createdAt: string;
+  items: Array<{ id: string; productId: string; quantity: number; refundPaise: number }>;
+}
+
+export interface AppSettings {
+  commissionPercent: number;
+  commissionThreshold: number;
+  commissionPercentBelow: number;
+  freeShippingMin: number;
+  shippingFee: number;
+  codCharge: number;
+  codMaxOrder: number;
+  taxPercent: number;
+  loyaltyEarnPer100: number;
+  loyaltyValuePaise: number;
+  loyaltyMaxRedeemPct: number;
+  referralBonusPaise: number;
+  adMinBudgetPaise: number;
+  adClickCostPaise: number;
+  adImpressionCostPaise: number;
+  siteName: string;
+  supportEmail: string;
+  supportPhone: string;
+  maintenanceMode: boolean;
+}
