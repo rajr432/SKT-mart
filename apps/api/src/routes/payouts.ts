@@ -1,0 +1,143 @@
+import { Router } from "express";
+import { z } from "zod";
+import { prisma } from "../lib/prisma";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { audit } from "../lib/audit";
+import { creditVendorWallet } from "../lib/wallet";
+
+const router = Router();
+
+// Admin: list payouts
+router.get("/", requireAuth, requireRole("ADMIN"), async (_req, res, next) => {
+  try {
+    const items = await prisma.payout.findMany({
+      include: { vendor: { select: { storeName: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ items });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Admin: generate payout for a vendor for a period
+const genSchema = z.object({
+  vendorId: z.string(),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+});
+
+router.post("/generate", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
+  try {
+    const { vendorId, periodStart, periodEnd } = genSchema.parse(req.body);
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+
+    const items = await prisma.orderItem.findMany({
+      where: {
+        vendorId,
+        status: "DELIVERED",
+        order: { placedAt: { gte: start, lte: end } },
+      },
+      include: { commissionRecord: true, order: true },
+    });
+
+    const grossSales = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const totalCommission = items.reduce((s, i) => s + (i.commissionRecord?.amountPaise ?? i.commission), 0);
+
+    // Refunds in period
+    const refunds = await prisma.return.findMany({
+      where: {
+        status: "REFUNDED",
+        items: { some: { orderItem: { vendorId } } },
+        updatedAt: { gte: start, lte: end },
+      },
+    });
+    const totalRefunds = refunds.reduce((s, r) => s + r.refundPaise, 0);
+
+    // Ad spend in period
+    const adSpend = await prisma.walletTransaction.aggregate({
+      where: {
+        vendorId,
+        reason: "AD_SPEND",
+        createdAt: { gte: start, lte: end },
+      },
+      _sum: { amountPaise: true },
+    });
+    const totalAdSpend = adSpend._sum.amountPaise ?? 0;
+
+    const netAmount = grossSales - totalCommission - totalRefunds - totalAdSpend;
+
+    const payout = await prisma.payout.create({
+      data: {
+        vendorId,
+        periodStart: start,
+        periodEnd: end,
+        grossSales,
+        totalCommission,
+        totalRefunds,
+        totalAdSpend,
+        netAmount,
+        status: "PENDING",
+      },
+    });
+
+    // Link commissions to payout
+    await prisma.commission.updateMany({
+      where: {
+        vendorId,
+        payoutId: null,
+        orderItem: { order: { placedAt: { gte: start, lte: end } } },
+      },
+      data: { payoutId: payout.id },
+    });
+
+    await audit(req.user!.sub, "PAYOUT_GENERATE", "Payout", payout.id, { vendorId, netAmount });
+    res.status(201).json({ payout });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const markPaidSchema = z.object({ utr: z.string().min(2), notes: z.string().optional() });
+
+router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
+  try {
+    const { utr, notes } = markPaidSchema.parse(req.body);
+    const p = await prisma.payout.findUnique({ where: { id: req.params.id } });
+    if (!p) return res.status(404).json({ error: "Not found" });
+    if (p.status === "PAID") return res.status(400).json({ error: "Already paid" });
+    const updated = await prisma.payout.update({
+      where: { id: p.id },
+      data: { status: "PAID", utr, notes, paidAt: new Date() },
+    });
+    // Credit vendor wallet (settlement) for tracking
+    await creditVendorWallet(p.vendorId, {
+      amountPaise: p.netAmount,
+      reason: "PAYOUT",
+      ref: p.id,
+      note: `Settlement ${p.id} via UTR ${utr}`,
+    });
+    await audit(req.user!.sub, "PAYOUT_PAID", "Payout", p.id, { utr });
+    res.json({ payout: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Vendor: my payouts
+router.get("/mine", requireAuth, async (req, res, next) => {
+  try {
+    const v = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!v) return res.status(404).json({ error: "Vendor not found" });
+    const items = await prisma.payout.findMany({
+      where: { vendorId: v.id },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ items });
+  } catch (e) {
+    next(e);
+  }
+});
+
+export default router;

@@ -33,6 +33,63 @@ enum OrderStatus {
   RETURNED
 }
 
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PICKED_UP
+  RECEIVED
+  REFUNDED
+  REPLACED
+}
+
+enum WalletTxnType {
+  CREDIT
+  DEBIT
+}
+
+enum WalletTxnReason {
+  RECHARGE
+  PAYOUT
+  AD_SPEND
+  REFUND
+  COMMISSION
+  REFERRAL
+  LOYALTY
+  GIFT_CARD
+  ADJUSTMENT
+}
+
+enum AdStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum NotificationType {
+  ORDER
+  PAYMENT
+  RETURN
+  PROMO
+  WALLET
+  REVIEW
+  SYSTEM
+}
+
+enum FulfillmentMode {
+  SELF
+  DROPSHIP
+}
+
 enum PaymentStatus {
   PENDING
   PAID
@@ -51,31 +108,54 @@ enum PaymentMethod {
 // ========== USERS ==========
 
 model User {
-  id          String     @id @default(cuid())
-  email       String?    @unique
-  phone       String?    @unique
-  name        String
-  password    String?
-  role        Role       @default(CUSTOMER)
+  id            String   @id @default(cuid())
+  email         String?  @unique
+  phone         String?  @unique
+  name          String
+  password      String?
+  role          Role     @default(CUSTOMER)
   emailVerified Boolean  @default(false)
   phoneVerified Boolean  @default(false)
-  avatar      String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  avatar        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  vendor      Vendor?
-  addresses   Address[]
-  orders      Order[]
-  reviews     Review[]
-  cart        CartItem[]
-  wishlist    WishlistItem[]
-  otps        Otp[]
+  vendor    Vendor?
+  addresses Address[]
+  orders    Order[]
+  reviews   Review[]
+  cart      CartItem[]
+  wishlist  WishlistItem[]
+  otps      Otp[]
+
+  // Engagement
+  loyaltyPoints     Int                  @default(0)
+  walletBalance     Int                  @default(0) // customer wallet (paise)
+  referralCode      String?              @unique
+  referredById      String?
+  referredBy        User?                @relation("Referral", fields: [referredById], references: [id])
+  referrals         User[]               @relation("Referral")
+  notifications     Notification[]
+  returns           Return[]
+  questions         ProductQuestion[]
+  answers           ProductAnswer[]
+  stockAlerts       StockAlert[]
+  priceAlerts       PriceAlert[]
+  recentlyViewed    RecentlyViewed[]
+  giftCardsBought   GiftCard[]           @relation("GiftCardBuyer")
+  giftCardsRedeemed GiftCardRedemption[]
+  walletTxns        WalletTransaction[]  @relation("UserWalletTxn")
+  loyaltyTxns       LoyaltyTransaction[]
+  auditLogs         AuditLog[]
+  comparisons       Comparison[]
+  searchLogs        SearchLog[]
+  deletedAt         DateTime?
 }
 
 model Otp {
   id        String   @id @default(cuid())
   userId    String?
-  target    String   // phone or email
+  target    String // phone or email
   code      String
   expiresAt DateTime
   used      Boolean  @default(false)
@@ -87,18 +167,18 @@ model Otp {
 }
 
 model Address {
-  id         String  @id @default(cuid())
-  userId     String
-  name       String
-  phone      String
-  line1      String
-  line2      String?
-  city       String
-  state      String
-  pincode    String
-  landmark   String?
-  isDefault  Boolean @default(false)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  landmark  String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   orders Order[]
@@ -110,24 +190,39 @@ model Address {
 // ========== VENDORS ==========
 
 model Vendor {
-  id           String        @id @default(cuid())
-  userId       String        @unique
-  storeName    String
-  slug         String        @unique
-  description  String?
-  logo         String?
-  gstin        String?
-  pan          String?
-  bankAccount  String?
-  ifsc         String?
-  status       VendorStatus  @default(PENDING)
-  rating       Float         @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id          String       @id @default(cuid())
+  userId      String       @unique
+  storeName   String
+  slug        String       @unique
+  description String?
+  logo        String?
+  gstin       String?
+  pan         String?
+  bankAccount String?
+  ifsc        String?
+  status      VendorStatus @default(PENDING)
+  rating      Float        @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products Product[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products   Product[]
   orderItems OrderItem[]
+
+  // Marketplace economics
+  walletBalance      Int                 @default(0) // paise (for ad spend & payouts buffer)
+  commissionOverride Float? // null = use platform default
+  payoutSchedule     String              @default("WEEKLY") // WEEKLY | MONTHLY | MANUAL
+  walletTxns         WalletTransaction[] @relation("VendorWalletTxn")
+  payouts            Payout[]
+  campaigns          AdCampaign[]
+  commissions        Commission[]
+  storyImage         String?
+  banner             String?
+  returnPolicy       String?
+  shippingDays       Int                 @default(5)
+
+  @@index([status])
 }
 
 // ========== CATALOG ==========
@@ -148,36 +243,175 @@ model Category {
 }
 
 model Product {
-  id           String      @id @default(cuid())
-  vendorId     String
-  categoryId   String
-  name         String
-  slug         String      @unique
-  description  String
-  brand        String?
-  sku          String      @unique
-  mrp          Int         // in paise
-  price        Int         // selling price in paise
-  stock        Int         @default(0)
-  fAssured     Boolean     @default(false)
-  images       ProductImage[]
-  specs        Json?
-  rating       Float       @default(0)
-  ratingCount  Int         @default(0)
-  published    Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id          String          @id @default(cuid())
+  vendorId    String
+  categoryId  String
+  name        String
+  slug        String          @unique
+  description String
+  brand       String?
+  sku         String          @unique
+  mrp         Int // in paise
+  price       Int // selling price in paise
+  costPrice   Int? // dropship cost (paise) - vendor margin calc
+  stock       Int             @default(0)
+  lowStockAt  Int             @default(5)
+  fAssured    Boolean         @default(false)
+  images      ProductImage[]
+  specs       Json?
+  hsnCode     String?
+  taxPercent  Float           @default(18)
+  weightGrams Int?
+  fulfillment FulfillmentMode @default(SELF)
+  supplierUrl String?
+  supplierKey String?
+  rating      Float           @default(0)
+  ratingCount Int             @default(0)
+  published   Boolean         @default(true)
+  metaTitle   String?
+  metaDesc    String?
+  views       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  vendor     Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  category   Category       @relation(fields: [categoryId], references: [id])
-  reviews    Review[]
-  cartItems  CartItem[]
-  wishlistItems WishlistItem[]
-  orderItems OrderItem[]
+  vendor         Vendor            @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category       Category          @relation(fields: [categoryId], references: [id])
+  reviews        Review[]
+  cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
+  orderItems     OrderItem[]
+  variants       ProductVariant[]
+  questions      ProductQuestion[]
+  bundles        BundleItem[]
+  campaigns      AdCampaign[]
+  stockAlerts    StockAlert[]
+  priceAlerts    PriceAlert[]
+  recentlyViewed RecentlyViewed[]
+  comparisons    Comparison[]      @relation("ProductComparisons")
+  returnsItems   ReturnItem[]
 
   @@index([vendorId])
   @@index([categoryId])
   @@index([published])
+  @@index([brand])
+}
+
+model ProductVariant {
+  id         String  @id @default(cuid())
+  productId  String
+  name       String // e.g., "Red / L"
+  sku        String  @unique
+  price      Int
+  mrp        Int
+  stock      Int     @default(0)
+  attributes Json // { color: "Red", size: "L" }
+  image      String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductQuestion {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  question  String
+  createdAt DateTime @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers ProductAnswer[]
+
+  @@index([productId])
+}
+
+model ProductAnswer {
+  id         String   @id @default(cuid())
+  questionId String
+  userId     String
+  answer     String
+  createdAt  DateTime @default(now())
+
+  question ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model StockAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  notified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model PriceAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  productId   String
+  targetPrice Int
+  notified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model RecentlyViewed {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, viewedAt])
+}
+
+model Comparison {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation("ProductComparisons", fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model Bundle {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?
+  discount    Int      @default(0) // percent
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  items BundleItem[]
+}
+
+model BundleItem {
+  id        String @id @default(cuid())
+  bundleId  String
+  productId String
+
+  bundle  Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, productId])
 }
 
 model ProductImage {
@@ -195,10 +429,10 @@ model ProductImage {
 // ========== CART & WISHLIST ==========
 
 model CartItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   productId String
-  quantity  Int     @default(1)
+  quantity  Int      @default(1)
   createdAt DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -208,7 +442,7 @@ model CartItem {
 }
 
 model WishlistItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   productId String
   createdAt DateTime @default(now())
@@ -249,19 +483,27 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  productId String
-  vendorId  String
-  name      String
-  image     String?
-  price     Int
-  quantity  Int
-  status    OrderStatus @default(PLACED)
+  id         String      @id @default(cuid())
+  orderId    String
+  productId  String
+  vendorId   String
+  variantId  String?
+  name       String
+  image      String?
+  price      Int
+  quantity   Int
+  commission Int         @default(0) // platform commission in paise
+  vendorEarn Int         @default(0) // (price*qty - commission) in paise
+  trackingNo String?
+  carrier    String?
+  status     OrderStatus @default(PLACED)
+  invoiceUrl String?
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
-  vendor  Vendor  @relation(fields: [vendorId], references: [id])
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product      @relation(fields: [productId], references: [id])
+  vendor           Vendor       @relation(fields: [vendorId], references: [id])
+  commissionRecord Commission?
+  returns          ReturnItem[]
 
   @@index([orderId])
   @@index([vendorId])
@@ -285,15 +527,15 @@ model Payment {
 // ========== REVIEWS ==========
 
 model Review {
-  id         String   @id @default(cuid())
-  productId  String
-  userId     String
-  rating     Int
-  title      String?
-  comment    String?
-  images     String[]
-  verified   Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int
+  title     String?
+  comment   String?
+  images    String[]
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -305,19 +547,19 @@ model Review {
 // ========== COUPONS & BANNERS ==========
 
 model Coupon {
-  id         String   @id @default(cuid())
-  code       String   @unique
-  title      String
-  type       String   // PERCENT | FLAT
-  value      Int
-  minOrder   Int      @default(0)
+  id          String    @id @default(cuid())
+  code        String    @unique
+  title       String
+  type        String // PERCENT | FLAT
+  value       Int
+  minOrder    Int       @default(0)
   maxDiscount Int?
-  startsAt   DateTime @default(now())
-  expiresAt  DateTime?
-  active     Boolean  @default(true)
-  usageLimit Int?
-  usedCount  Int      @default(0)
-  createdAt  DateTime @default(now())
+  startsAt    DateTime  @default(now())
+  expiresAt   DateTime?
+  active      Boolean   @default(true)
+  usageLimit  Int?
+  usedCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
 }
 
 model Banner {
@@ -333,10 +575,321 @@ model Banner {
 // ========== PINCODE SERVICEABILITY ==========
 
 model Pincode {
-  pincode     String  @id
-  city        String
-  state       String
-  serviceable Boolean @default(true)
+  pincode      String  @id
+  city         String
+  state        String
+  serviceable  Boolean @default(true)
   codAvailable Boolean @default(true)
-  etaDays     Int     @default(5)
+  etaDays      Int     @default(5)
+}
+
+// ========== APP SETTINGS ==========
+
+model AppSettings {
+  id                     String   @id @default("default")
+  // Commission
+  commissionPercent      Float    @default(10)
+  commissionThreshold    Int      @default(50000) // paise (₹500)
+  commissionPercentBelow Float    @default(5) // for items below threshold
+  // Order
+  freeShippingMin        Int      @default(50000) // paise
+  shippingFee            Int      @default(4000) // paise
+  codCharge              Int      @default(4000) // paise
+  codMaxOrder            Int      @default(2000000) // paise (₹20000)
+  taxPercent             Float    @default(18)
+  // Loyalty
+  loyaltyEarnPer100      Int      @default(1) // 1 coin per ₹100
+  loyaltyValuePaise      Int      @default(100) // 1 coin = ₹1
+  loyaltyMaxRedeemPct    Float    @default(20) // max 20% off via coins
+  // Referral
+  referralBonusPaise     Int      @default(10000) // ₹100 wallet credit
+  // Ads
+  adMinBudgetPaise       Int      @default(50000) // ₹500 min campaign
+  adClickCostPaise       Int      @default(500) // ₹5 per click
+  adImpressionCostPaise  Int      @default(50) // ₹0.50 per impression (optional)
+  // Misc
+  siteName               String   @default("SKT Mart")
+  supportEmail           String   @default("support@sktmart.com")
+  supportPhone           String   @default("+91-1800-200-9999")
+  maintenanceMode        Boolean  @default(false)
+  features               Json     @default("{}") // feature flags
+  updatedAt              DateTime @updatedAt
+}
+
+// ========== COMMISSION LEDGER ==========
+
+model Commission {
+  id          String   @id @default(cuid())
+  orderItemId String   @unique
+  vendorId    String
+  amountPaise Int // commission amount
+  percent     Float
+  basePaise   Int // item gross
+  payoutId    String? // settled in this payout
+  createdAt   DateTime @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  vendor    Vendor    @relation(fields: [vendorId], references: [id])
+  payout    Payout?   @relation(fields: [payoutId], references: [id])
+
+  @@index([vendorId])
+  @@index([payoutId])
+}
+
+// ========== VENDOR WALLET / PAYOUTS ==========
+
+model WalletTransaction {
+  id           String          @id @default(cuid())
+  // Either userId (customer wallet) or vendorId (vendor wallet) is set
+  userId       String?
+  vendorId     String?
+  type         WalletTxnType
+  reason       WalletTxnReason
+  amountPaise  Int // positive number
+  balanceAfter Int
+  ref          String? // related entity id (order, payout, campaign)
+  note         String?
+  createdAt    DateTime        @default(now())
+
+  user   User?   @relation("UserWalletTxn", fields: [userId], references: [id], onDelete: Cascade)
+  vendor Vendor? @relation("VendorWalletTxn", fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([reason])
+}
+
+model Payout {
+  id              String       @id @default(cuid())
+  vendorId        String
+  periodStart     DateTime
+  periodEnd       DateTime
+  grossSales      Int // sum of items gross
+  totalCommission Int
+  totalRefunds    Int          @default(0)
+  totalAdSpend    Int          @default(0)
+  netAmount       Int // amount paid to vendor
+  status          PayoutStatus @default(PENDING)
+  utr             String? // bank transaction reference
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  vendor      Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([vendorId])
+  @@index([status])
+}
+
+// ========== ADS / SPONSORED PRODUCTS ==========
+
+model AdCampaign {
+  id          String    @id @default(cuid())
+  vendorId    String
+  productId   String
+  name        String
+  budgetPaise Int
+  spentPaise  Int       @default(0)
+  bidPaise    Int // cost per click
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime?
+  status      AdStatus  @default(DRAFT)
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  conversions Int       @default(0)
+  keyword     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  vendor  Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  product Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  events  AdEvent[]
+
+  @@index([vendorId])
+  @@index([productId])
+  @@index([status])
+}
+
+model AdEvent {
+  id         String   @id @default(cuid())
+  campaignId String
+  type       String // IMPRESSION | CLICK | CONVERSION
+  costPaise  Int      @default(0)
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([type])
+}
+
+// ========== RETURNS ==========
+
+model Return {
+  id          String       @id @default(cuid())
+  rmaNumber   String       @unique
+  orderId     String
+  userId      String
+  reason      String
+  description String?
+  refundMode  String // WALLET | SOURCE | REPLACE
+  status      ReturnStatus @default(REQUESTED)
+  pickupDate  DateTime?
+  refundPaise Int          @default(0)
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id])
+  items ReturnItem[]
+
+  @@index([userId])
+  @@index([orderId])
+}
+
+model ReturnItem {
+  id          String @id @default(cuid())
+  returnId    String
+  orderItemId String
+  productId   String
+  quantity    Int
+  refundPaise Int
+
+  return    Return    @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([returnId])
+}
+
+// ========== NOTIFICATIONS ==========
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+// ========== LOYALTY / REFERRAL / GIFT CARD ==========
+
+model LoyaltyTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  points       Int // positive=earn, negative=redeem
+  reason       String // ORDER_EARN | ORDER_REDEEM | REFERRAL | EXPIRY | ADJUSTMENT
+  ref          String?
+  balanceAfter Int
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model GiftCard {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  amountPaise  Int
+  balancePaise Int
+  buyerId      String?
+  recipient    String? // email or phone
+  message      String?
+  expiresAt    DateTime
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  buyer       User?                @relation("GiftCardBuyer", fields: [buyerId], references: [id])
+  redemptions GiftCardRedemption[]
+
+  @@index([code])
+}
+
+model GiftCardRedemption {
+  id          String   @id @default(cuid())
+  giftCardId  String
+  userId      String
+  amountPaise Int
+  orderId     String?
+  createdAt   DateTime @default(now())
+
+  giftCard GiftCard @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([giftCardId])
+}
+
+// ========== AUDIT LOG ==========
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId])
+}
+
+// ========== BRANDS / TAX RATES / TEMPLATES ==========
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  logo      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model TaxRate {
+  id          String   @id @default(cuid())
+  hsnCode     String   @unique
+  description String
+  cgst        Float    @default(0)
+  sgst        Float    @default(0)
+  igst        Float    @default(18)
+  createdAt   DateTime @default(now())
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  channel   String // EMAIL | SMS | PUSH
+  subject   String?
+  body      String
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+// ========== SEARCH LOG (for trending searches) ==========
+
+model SearchLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  query     String
+  results   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([query])
+  @@index([createdAt])
 }

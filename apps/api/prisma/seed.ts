@@ -11,6 +11,13 @@ async function main() {
   await prisma.banner.deleteMany({});
   await prisma.coupon.deleteMany({});
   await prisma.pincode.deleteMany({});
+  await prisma.brand.deleteMany({});
+  await prisma.taxRate.deleteMany({});
+  await prisma.messageTemplate.deleteMany({});
+  await prisma.appSettings.deleteMany({});
+
+  // Global app settings
+  await prisma.appSettings.create({ data: { id: "default" } });
 
   const adminPass = await bcrypt.hash("admin@123", 10);
   const vendorPass = await bcrypt.hash("vendor@123", 10);
@@ -269,6 +276,90 @@ async function main() {
       pincode: "110001",
       isDefault: true,
     },
+  });
+
+  // Seed some brands
+  await prisma.brand.createMany({
+    data: [
+      { name: "Xiaomi", slug: "xiaomi" },
+      { name: "Dell", slug: "dell" },
+      { name: "boAt", slug: "boat" },
+      { name: "Allen Solly", slug: "allen-solly" },
+      { name: "Biba", slug: "biba" },
+      { name: "Prestige", slug: "prestige" },
+      { name: "Hawkins", slug: "hawkins" },
+    ],
+  });
+
+  // Tax rates
+  await prisma.taxRate.createMany({
+    data: [
+      { hsnCode: "8517", description: "Mobile phones", cgst: 9, sgst: 9, igst: 18 },
+      { hsnCode: "6109", description: "T-Shirts", cgst: 6, sgst: 6, igst: 12 },
+      { hsnCode: "8516", description: "Kitchen appliances", cgst: 9, sgst: 9, igst: 18 },
+      { hsnCode: "4901", description: "Books", cgst: 0, sgst: 0, igst: 0 },
+    ],
+  });
+
+  // Pre-credit vendor wallet so they can run ads
+  await prisma.vendor.update({
+    where: { id: vendor.id },
+    data: { walletBalance: 500000 },
+  });
+  await prisma.walletTransaction.create({
+    data: {
+      vendorId: vendor.id,
+      type: "CREDIT",
+      reason: "RECHARGE",
+      amountPaise: 500000,
+      balanceAfter: 500000,
+      note: "Initial seed recharge",
+    },
+  });
+
+  // Sample ad campaign on first product
+  const firstProduct = await prisma.product.findFirst({ where: { vendorId: vendor.id } });
+  if (firstProduct) {
+    await prisma.adCampaign.create({
+      data: {
+        vendorId: vendor.id,
+        productId: firstProduct.id,
+        name: "Boost - Redmi Note 13",
+        budgetPaise: 200000,
+        bidPaise: 500,
+        status: "ACTIVE",
+      },
+    });
+  }
+
+  // Notification templates
+  await prisma.messageTemplate.createMany({
+    data: [
+      {
+        key: "ORDER_PLACED",
+        channel: "EMAIL",
+        subject: "Order Confirmed - SKT Mart",
+        body: "Hi {{name}}, your order {{orderNumber}} has been placed.",
+      },
+      {
+        key: "ORDER_SHIPPED",
+        channel: "EMAIL",
+        subject: "Order Shipped - SKT Mart",
+        body: "Hi {{name}}, your order {{orderNumber}} has been shipped. Track at {{trackingLink}}.",
+      },
+      {
+        key: "RETURN_APPROVED",
+        channel: "EMAIL",
+        subject: "Return Approved",
+        body: "Hi {{name}}, your return {{rmaNumber}} has been approved.",
+      },
+    ],
+  });
+
+  // Customer referral code
+  await prisma.user.update({
+    where: { id: customerUser.id },
+    data: { referralCode: "SKTWELCOME" },
   });
 
   console.log("✓ Seed complete");

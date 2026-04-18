@@ -5,6 +5,10 @@ import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { computePrice } from "../lib/pricing";
 import { generateOrderNumber } from "../lib/order";
+import { computeCommission } from "../lib/commission";
+import { notify } from "../lib/notify";
+import { creditUserWallet } from "../lib/wallet";
+import { getSettings } from "../lib/settings";
 
 const router = Router();
 
@@ -45,6 +49,20 @@ router.post("/", requireAuth, async (req, res, next) => {
       address.pincode,
     );
 
+    // Pre-compute commission per line item (uses settings & vendor override)
+    const itemCommissions = await Promise.all(
+      cartItems.map(async (ci) => {
+        const c = await computeCommission(ci.product.price, ci.quantity, ci.product.vendorId);
+        return {
+          ci,
+          commission: c.amountPaise,
+          vendorEarn: c.basePaise - c.amountPaise,
+          percent: c.percent,
+          basePaise: c.basePaise,
+        };
+      }),
+    );
+
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -60,24 +78,41 @@ router.post("/", requireAuth, async (req, res, next) => {
           couponCode: body.couponCode,
           notes: body.notes,
           items: {
-            create: cartItems.map((ci) => ({
+            create: itemCommissions.map(({ ci, commission, vendorEarn }) => ({
               productId: ci.productId,
               vendorId: ci.product.vendorId,
               name: ci.product.name,
               price: ci.product.price,
               quantity: ci.quantity,
+              commission,
+              vendorEarn,
             })),
           },
           payment: {
             create: {
               amount: breakup.total,
               method: body.paymentMethod,
-              status: body.paymentMethod === "COD" ? "PENDING" : "PENDING",
+              status: "PENDING",
             },
           },
         },
         include: { items: true, payment: true, address: true },
       });
+
+      // Create commission ledger entries
+      for (const it of created.items) {
+        const ic = itemCommissions.find((x) => x.ci.productId === it.productId);
+        if (!ic) continue;
+        await tx.commission.create({
+          data: {
+            orderItemId: it.id,
+            vendorId: it.vendorId,
+            amountPaise: ic.commission,
+            percent: ic.percent,
+            basePaise: ic.basePaise,
+          },
+        });
+      }
 
       for (const ci of cartItems) {
         await tx.product.update({
@@ -96,6 +131,54 @@ router.post("/", requireAuth, async (req, res, next) => {
 
       return created;
     });
+
+    // Award loyalty points (1 coin per ₹100 spent)
+    const settings = await getSettings();
+    const points = Math.floor(breakup.total / (100 * settings.loyaltyEarnPer100));
+    if (points > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { loyaltyPoints: { increment: points } },
+      });
+      await prisma.loyaltyTransaction.create({
+        data: {
+          userId,
+          points,
+          reason: "ORDER_EARN",
+          ref: order.id,
+          balanceAfter: 0,
+        },
+      });
+    }
+
+    // Referral bonus on first order
+    const userOrderCount = await prisma.order.count({ where: { userId } });
+    if (userOrderCount === 1) {
+      const u = await prisma.user.findUnique({ where: { id: userId } });
+      if (u?.referredById) {
+        await creditUserWallet(u.referredById, {
+          amountPaise: settings.referralBonusPaise,
+          reason: "REFERRAL",
+          ref: order.id,
+          note: `Referral bonus from ${u.name}`,
+        });
+        await notify(
+          u.referredById,
+          "WALLET",
+          "Referral bonus credited!",
+          `\u20B9${(settings.referralBonusPaise / 100).toFixed(0)} added to your wallet.`,
+          "/account",
+        );
+      }
+    }
+
+    await notify(
+      userId,
+      "ORDER",
+      `Order placed: ${order.orderNumber}`,
+      `Your order has been placed successfully.`,
+      `/orders/${order.id}`,
+    );
 
     res.status(201).json({ order });
   } catch (e) {
@@ -139,10 +222,35 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
     if (!order || order.userId !== req.user!.sub) throw new HttpError(404, "Order not found");
     if (!["PLACED", "CONFIRMED"].includes(order.status))
       throw new HttpError(400, "Order cannot be cancelled at this stage");
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: "CANCELLED" },
+    const updated = await prisma.$transaction(async (tx) => {
+      const o = await tx.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED" },
+        include: { items: true },
+      });
+      // restock
+      for (const it of o.items) {
+        await tx.product.update({
+          where: { id: it.productId },
+          data: { stock: { increment: it.quantity } },
+        });
+      }
+      return o;
     });
+    // refund to wallet if already paid
+    if (order.paymentStatus === "PAID") {
+      await creditUserWallet(order.userId, {
+        amountPaise: order.total,
+        reason: "REFUND",
+        ref: order.id,
+        note: `Refund for cancelled order ${order.orderNumber}`,
+      });
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { paymentStatus: "REFUNDED" },
+      });
+    }
+    await notify(order.userId, "ORDER", `Order cancelled`, `Order ${order.orderNumber} has been cancelled.`, `/orders/${order.id}`);
     res.json({ order: updated });
   } catch (e) {
     next(e);
