@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== ENUMS ==========
+
+enum Role {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  RAZORPAY
+  UPI
+  CARD
+  NETBANKING
+}
+
+// ========== USERS ==========
+
+model User {
+  id          String     @id @default(cuid())
+  email       String?    @unique
+  phone       String?    @unique
+  name        String
+  password    String?
+  role        Role       @default(CUSTOMER)
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  avatar      String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  vendor      Vendor?
+  addresses   Address[]
+  orders      Order[]
+  reviews     Review[]
+  cart        CartItem[]
+  wishlist    WishlistItem[]
+  otps        Otp[]
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  userId    String?
+  target    String   // phone or email
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([target])
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  name       String
+  phone      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  pincode    String
+  landmark   String?
+  isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+  @@index([pincode])
+}
+
+// ========== VENDORS ==========
+
+model Vendor {
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  storeName    String
+  slug         String        @unique
+  description  String?
+  logo         String?
+  gstin        String?
+  pan          String?
+  bankAccount  String?
+  ifsc         String?
+  status       VendorStatus  @default(PENDING)
+  rating       Float         @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  orderItems OrderItem[]
+}
+
+// ========== CATALOG ==========
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  image       String?
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Category[] @relation("CategoryTree")
+  products    Product[]
+  createdAt   DateTime   @default(now())
+
+  @@index([parentId])
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  vendorId     String
+  categoryId   String
+  name         String
+  slug         String      @unique
+  description  String
+  brand        String?
+  sku          String      @unique
+  mrp          Int         // in paise
+  price        Int         // selling price in paise
+  stock        Int         @default(0)
+  fAssured     Boolean     @default(false)
+  images       ProductImage[]
+  specs        Json?
+  rating       Float       @default(0)
+  ratingCount  Int         @default(0)
+  published    Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  vendor     Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category       @relation(fields: [categoryId], references: [id])
+  reviews    Review[]
+  cartItems  CartItem[]
+  wishlistItems WishlistItem[]
+  orderItems OrderItem[]
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([published])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  position  Int     @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ========== CART & WISHLIST ==========
+
+model CartItem {
+  id        String  @id @default(cuid())
+  userId    String
+  productId String
+  quantity  Int     @default(1)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model WishlistItem {
+  id        String  @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+// ========== ORDERS ==========
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique
+  userId        String
+  addressId     String
+  subtotal      Int
+  discount      Int           @default(0)
+  shippingFee   Int           @default(0)
+  tax           Int           @default(0)
+  total         Int
+  status        OrderStatus   @default(PLACED)
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod @default(COD)
+  couponCode    String?
+  notes         String?
+  placedAt      DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id])
+  address Address     @relation(fields: [addressId], references: [id])
+  items   OrderItem[]
+  payment Payment?
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  vendorId  String
+  name      String
+  image     String?
+  price     Int
+  quantity  Int
+  status    OrderStatus @default(PLACED)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  vendor  Vendor  @relation(fields: [vendorId], references: [id])
+
+  @@index([orderId])
+  @@index([vendorId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String        @unique
+  amount            Int
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ========== REVIEWS ==========
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  userId     String
+  rating     Int
+  title      String?
+  comment    String?
+  images     String[]
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId])
+}
+
+// ========== COUPONS & BANNERS ==========
+
+model Coupon {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  title      String
+  type       String   // PERCENT | FLAT
+  value      Int
+  minOrder   Int      @default(0)
+  maxDiscount Int?
+  startsAt   DateTime @default(now())
+  expiresAt  DateTime?
+  active     Boolean  @default(true)
+  usageLimit Int?
+  usedCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  image     String
+  link      String?
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ========== PINCODE SERVICEABILITY ==========
+
+model Pincode {
+  pincode     String  @id
+  city        String
+  state       String
+  serviceable Boolean @default(true)
+  codAvailable Boolean @default(true)
+  etaDays     Int     @default(5)
+}

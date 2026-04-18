@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: #f1f3f6;
+  color: #212121;
+}
+
+.container-page {
+  @apply max-w-7xl mx-auto px-3 sm:px-4 lg:px-6;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center bg-brand text-white font-medium px-4 py-2 rounded-sm hover:bg-brand-dark transition;
+}
+.btn-yellow {
+  @apply inline-flex items-center justify-center bg-brand-yellow text-white font-semibold px-4 py-2 rounded-sm hover:brightness-95 transition;
+}
+.btn-outline {
+  @apply inline-flex items-center justify-center border border-gray-300 bg-white px-4 py-2 rounded-sm hover:bg-gray-50 transition;
+}
+.input {
+  @apply w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-brand;
+}
+.card {
+  @apply bg-white shadow-card rounded-sm;
+}
