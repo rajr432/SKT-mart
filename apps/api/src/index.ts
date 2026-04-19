@@ -70,8 +70,20 @@ app.get(["/health", "/api/health"], (_req, res) => {
 });
 
 // Root landing — clarifies this host is the API; points browsers to the web app.
+const htmlAttrEscape = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
 app.get("/", (_req, res) => {
-  const webUrl = process.env.WEB_URL ?? "https://web-ra-ram.vercel.app";
+  const rawUrl = process.env.WEB_URL ?? "https://web-ra-ram.vercel.app";
+  // Only allow http(s) URLs; reject javascript:/data: schemes even if an
+  // operator mis-sets WEB_URL. Fall back to the public web app if invalid.
+  const webUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : "https://web-ra-ram.vercel.app";
+  const safeUrl = htmlAttrEscape(webUrl);
   res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
@@ -92,7 +104,7 @@ app.get("/", (_req, res) => {
   <div class="card">
     <h1>SKT Mart — Backend API</h1>
     <p>Ye backend hai. User-facing shopping site kholne ke liye neeche click karo 👇</p>
-    <a class="btn" href="${webUrl}">Open SKT Mart Web App →</a>
+    <a class="btn" href="${safeUrl}">Open SKT Mart Web App →</a>
     <p style="margin-top:24px;font-size:13px">Endpoints: <code>/health</code>, <code>/api/products</code>, <code>/api/categories</code>, <code>/api/auth/login</code>, <code>/sitemap.xml</code></p>
     <ul>
       <li>Status: <code>${new Date().toISOString()}</code></li>

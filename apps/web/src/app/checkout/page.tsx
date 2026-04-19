@@ -15,14 +15,17 @@ export default function CheckoutPage() {
   const [addressId, setAddressId] = useState<string>("");
   const [method, setMethod] = useState<"RAZORPAY" | "UPI" | "WALLET">("RAZORPAY");
   const [coupon, setCoupon] = useState("");
-  const [settings, setSettings] = useState<{
-    freeShippingMin: number;
-    shippingFee: number;
-    taxPercent: number;
-  } | null>(null);
   const [newAddr, setNewAddr] = useState<Partial<Address> | null>(null);
   const [placing, setPlacing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    subtotal: number;
+    discount: number;
+    couponDiscount: number;
+    shippingFee: number;
+    tax: number;
+    total: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -31,34 +34,62 @@ export default function CheckoutPage() {
       return;
     }
     (async () => {
-      const [a, c, s] = await Promise.all([
+      const [a, c] = await Promise.all([
         api<{ items: Address[] }>("/api/addresses", { token }),
         api<{ items: CartItem[] }>("/api/cart", { token }),
-        api<{ freeShippingMin: number; shippingFee: number; taxPercent: number }>(
-          "/api/settings/public",
-        ).catch(() => ({ freeShippingMin: 50000, shippingFee: 4000, taxPercent: 18 })),
       ]);
       setAddresses(a.items);
       setItems(c.items);
-      setSettings({
-        freeShippingMin: s.freeShippingMin,
-        shippingFee: s.shippingFee,
-        taxPercent: s.taxPercent,
-      });
       const def = a.items.find((x) => x.isDefault) ?? a.items[0];
       if (def) setAddressId(def.id);
     })();
   }, [ready, token]);
 
+  // Server-side price preview — recomputed whenever cart or coupon changes.
+  // Using the backend engine guarantees the displayed total equals the charge.
+  useEffect(() => {
+    if (!token || items.length === 0) {
+      setPreview(null);
+      return;
+    }
+    const addr = addresses.find((x) => x.id === addressId);
+    const handle = setTimeout(() => {
+      api<typeof preview>("/api/orders/preview", {
+        token,
+        method: "POST",
+        json: { couponCode: coupon || undefined, pincode: addr?.pincode },
+      })
+        .then((p) => setPreview(p))
+        .catch(() => setPreview(null));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [token, items, coupon, addressId, addresses]);
+
   const totals = useMemo(() => {
-    const cfg = settings ?? { freeShippingMin: 50000, shippingFee: 4000, taxPercent: 18 };
     const subtotal = items.reduce((s, i) => s + i.product.mrp * i.quantity, 0);
     const selling = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
     const discount = subtotal - selling;
-    const shipping = selling >= cfg.freeShippingMin ? 0 : cfg.shippingFee;
-    const tax = Math.round((selling * cfg.taxPercent) / 100);
-    return { subtotal, selling, discount, shipping, tax, total: selling + shipping + tax };
-  }, [items, settings]);
+    if (preview) {
+      return {
+        subtotal,
+        selling,
+        discount,
+        couponDiscount: preview.couponDiscount,
+        shipping: preview.shippingFee,
+        tax: preview.tax,
+        total: preview.total,
+      };
+    }
+    return {
+      subtotal,
+      selling,
+      discount,
+      couponDiscount: 0,
+      shipping: 0,
+      tax: 0,
+      total: selling,
+    };
+  }, [items, preview]);
 
   const saveAddress = async () => {
     if (!newAddr) return;
@@ -243,12 +274,18 @@ export default function CheckoutPage() {
             <span>Discount</span>
             <span>− {formatPaise(totals.discount)}</span>
           </div>
+          {totals.couponDiscount > 0 && (
+            <div className="flex justify-between text-brand-green">
+              <span>Coupon</span>
+              <span>− {formatPaise(totals.couponDiscount)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Delivery</span>
             <span>{totals.shipping === 0 ? "Free" : formatPaise(totals.shipping)}</span>
           </div>
           <div className="flex justify-between">
-            <span>Tax ({settings?.taxPercent ?? 18}%)</span>
+            <span>Tax</span>
             <span>{formatPaise(totals.tax)}</span>
           </div>
           <div className="border-t my-2" />

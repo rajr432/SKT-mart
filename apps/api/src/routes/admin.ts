@@ -369,6 +369,17 @@ router.get("/analytics", async (req, res, next) => {
 
 // ============ EXPORTS ============
 
+// Proper RFC-4180 escaping + Excel/Sheets formula-injection guard. Fields
+// starting with =,+,-,@,\t,\r are prefixed with `'` so spreadsheet apps
+// render them as text instead of evaluating them as formulas.
+const csvCell = (v: unknown): string => {
+  let s = v === null || v === undefined ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (/[",\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+const csvRow = (cells: unknown[]) => cells.map(csvCell).join(",");
+
 router.get("/export/orders.csv", async (_req, res, next) => {
   try {
     const orders = await prisma.order.findMany({
@@ -377,21 +388,21 @@ router.get("/export/orders.csv", async (_req, res, next) => {
       take: 5000,
     });
     const rows = [
-      ["orderNumber", "date", "customer", "email", "total", "status", "paymentStatus", "items"].join(","),
+      csvRow(["orderNumber", "date", "customer", "email", "total", "status", "paymentStatus", "items"]),
       ...orders.map((o) =>
-        [
+        csvRow([
           o.orderNumber,
           o.placedAt.toISOString(),
-          JSON.stringify(o.user.name),
+          o.user.name,
           o.user.email ?? "",
           (o.total / 100).toFixed(2),
           o.status,
           o.paymentStatus,
           o.items.length,
-        ].join(","),
+        ]),
       ),
-    ].join("\n");
-    res.set("Content-Type", "text/csv");
+    ].join("\r\n");
+    res.set("Content-Type", "text/csv; charset=utf-8");
     res.set("Content-Disposition", 'attachment; filename="orders.csv"');
     res.send(rows);
   } catch (e) {

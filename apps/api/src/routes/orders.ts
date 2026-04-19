@@ -19,6 +19,48 @@ const placeOrderSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Price preview — same engine as /orders POST, no side-effects. Frontend
+// checkout calls this so the displayed total matches what will be charged
+// (coupon-aware tax + shipping threshold).
+router.post(
+  "/preview",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const body = z
+        .object({ couponCode: z.string().optional(), pincode: z.string().optional() })
+        .parse(req.body ?? {});
+      const cartItems = await prisma.cartItem.findMany({
+        where: { userId: req.user!.sub },
+        include: { product: true },
+      });
+      if (cartItems.length === 0) {
+        return res.json({
+          subtotal: 0,
+          discount: 0,
+          couponDiscount: 0,
+          shippingFee: 0,
+          tax: 0,
+          total: 0,
+        });
+      }
+      const breakup = await computePrice(
+        cartItems.map((c) => ({
+          productId: c.productId,
+          price: c.product.price,
+          mrp: c.product.mrp,
+          quantity: c.quantity,
+        })),
+        body.couponCode,
+        body.pincode,
+      );
+      res.json(breakup);
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 router.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = placeOrderSchema.parse(req.body);
@@ -116,9 +158,20 @@ router.post("/", requireAuth, async (req, res, next) => {
         );
       }
 
-      // Create commission ledger entries
+      // Create commission ledger entries. Match each saved OrderItem back to
+      // its precomputed commission via a Map keyed by (productId, quantity,
+      // price) — unique per line because cart has @@unique([userId,productId])
+      // and the quantity/price snapshot is copied verbatim. This is more
+      // robust than `find(x => x.ci.productId === it.productId)` if the
+      // schema ever grows to allow multiple cart rows per product (variants).
+      const commissionByKey = new Map(
+        itemCommissions.map((ic) => [
+          `${ic.ci.productId}:${ic.ci.quantity}:${ic.ci.product.price}`,
+          ic,
+        ]),
+      );
       for (const it of created.items) {
-        const ic = itemCommissions.find((x) => x.ci.productId === it.productId);
+        const ic = commissionByKey.get(`${it.productId}:${it.quantity}:${it.price}`);
         if (!ic) continue;
         await tx.commission.create({
           data: {

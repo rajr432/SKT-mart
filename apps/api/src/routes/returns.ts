@@ -108,15 +108,21 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
     // two independent writes, so a transient failure after the status update
     // would leave a "REFUNDED" return with no corresponding wallet credit.
     const updated = await prisma.$transaction(async (tx) => {
-      // Race-safe status flip: only the first concurrent transition
-      // to `status` wins. Without this guard, repeated REFUNDED calls
-      // would credit the user's wallet multiple times.
+      // REFUNDED / REPLACED are terminal states — never re-enter. Using
+      // `notIn: ["REFUNDED","REPLACED"]` as the guard (instead of `not: status`)
+      // prevents a cycle like REQUESTED → REFUNDED → RECEIVED → REFUNDED from
+      // ever crediting the wallet twice. For non-terminal transitions we fall
+      // back to "must differ from current" to stay idempotent on retries.
+      const terminalGuard =
+        status === "REFUNDED" || status === "REPLACED"
+          ? { status: { notIn: ["REFUNDED" as const, "REPLACED" as const] } }
+          : { status: { not: status } };
       const claim = await tx.return.updateMany({
-        where: { id: r.id, status: { not: status } },
+        where: { id: r.id, ...terminalGuard },
         data: { status },
       });
       if (claim.count === 0) {
-        // Already at requested status — idempotent, don't re-credit.
+        // Either already terminal, or already at requested status — no-op.
         return tx.return.findUniqueOrThrow({ where: { id: r.id } });
       }
       if (status === "REFUNDED" && (r.refundMode === "WALLET" || r.refundMode === "SOURCE")) {
