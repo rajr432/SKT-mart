@@ -88,7 +88,7 @@ router.post("/pay-registration/wallet", requireAuth, async (req, res, next) => {
       if (claim.count === 0) throw new HttpError(400, "Registration already paid");
       const w = await debitUserWallet(
         req.user!.sub,
-        { amountPaise: fee, reason: "ADJUSTMENT", ref: vendor.id, note: "Vendor registration fee" },
+        { amountPaise: fee, reason: "REGISTRATION_FEE", ref: vendor.id, note: "Vendor registration fee" },
         tx,
       );
       const v = await tx.vendor.update({

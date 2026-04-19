@@ -152,7 +152,7 @@ router.post("/", requireAuth, async (req, res, next) => {
           userId,
           {
             amountPaise: breakup.total,
-            reason: "ADJUSTMENT",
+            reason: "PURCHASE",
             ref: created.id,
             note: `Order ${created.orderNumber}`,
           },

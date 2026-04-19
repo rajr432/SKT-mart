@@ -58,6 +58,8 @@ enum WalletTxnReason {
   LOYALTY
   GIFT_CARD
   ADJUSTMENT
+  PURCHASE
+  REGISTRATION_FEE
 }
 
 enum AdStatus {
