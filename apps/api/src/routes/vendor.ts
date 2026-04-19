@@ -142,6 +142,7 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
     if (!valid) throw new HttpError(400, "Invalid signature");
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!vendor) throw new HttpError(404, "Apply as vendor first");
+    if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
     const updated = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.update({
         where: { id: vendor.id },
