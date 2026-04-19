@@ -9,6 +9,7 @@ import Providers from "@/components/Providers";
 import PushSubscribePrompt from "@/components/PushSubscribePrompt";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import ScrollToTop from "@/components/ScrollToTop";
+import AppUpdateBanner from "@/components/AppUpdateBanner";
 
 export const metadata: Metadata = {
   title: {
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PushSubscribePrompt />
           <LiveChatWidget />
           <ScrollToTop />
+          <AppUpdateBanner />
         </Providers>
       </body>
     </html>

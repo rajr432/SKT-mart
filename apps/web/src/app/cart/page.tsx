@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { api, discountPercent, formatPaise } from "@/lib/api";
 import type { CartItem } from "@/lib/types";
+import FreeShippingBar from "@/components/FreeShippingBar";
 
 export default function CartPage() {
   const { token, ready } = useAuth();
@@ -66,6 +67,7 @@ export default function CartPage() {
   return (
     <div className="container-page py-6 grid md:grid-cols-[1fr_360px] gap-4">
       <div className="space-y-3">
+        <FreeShippingBar />
         {items.map((ci) => {
           const img = ci.product.images?.[0]?.url;
           return (
