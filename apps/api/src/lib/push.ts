@@ -38,9 +38,11 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     return { sent: 0, failed: 0 };
   }
   const subs = await prisma.pushSubscription.findMany({ where: { userId } });
-  let sent = 0;
-  let failed = 0;
-  await Promise.all(
+  // Use allSettled + post-filter counts (not shared mutable `sent`/`failed`
+  // counters inside concurrent callbacks) so the returned totals are
+  // unambiguously correct and robust to any future refactor that moves
+  // awaits around.
+  const results = await Promise.allSettled(
     subs.map(async (s) => {
       try {
         await webpush.sendNotification(
@@ -50,9 +52,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
           },
           JSON.stringify(payload),
         );
-        sent += 1;
       } catch (e) {
-        failed += 1;
         const statusCode = (e as { statusCode?: number }).statusCode;
         // 404/410 = subscription expired/revoked — remove so we don't
         // keep retrying a dead endpoint.
@@ -64,8 +64,11 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
           // eslint-disable-next-line no-console
           console.error(`[push] send failed for ${userId}: ${(e as Error).message}`);
         }
+        throw e;
       }
     }),
   );
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.length - sent;
   return { sent, failed };
 }
