@@ -43,16 +43,26 @@ const app = express();
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({
+    // `||` (not `??`) so an empty / whitespace-only env var falls back to
+    // the hardcoded allowlist instead of `[]` (which would block every
+    // browser origin and silently brick the API).
     origin:
       (process.env.CORS_ORIGIN ?? process.env.CLIENT_ORIGIN)
         ?.split(",")
         .map((s) => s.trim())
-        .filter(Boolean) ?? [
-        "https://sktmart.online",
-        "https://www.sktmart.online",
-        "https://web-ra-ram.vercel.app",
-        "http://localhost:3000",
-      ],
+        .filter(Boolean)
+        .length
+        ? (process.env.CORS_ORIGIN ?? process.env.CLIENT_ORIGIN)!
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [
+            "https://sktmart.online",
+            "https://www.sktmart.online",
+            "https://sktmart.vercel.app",
+            "https://web-ra-ram.vercel.app",
+            "http://localhost:3000",
+          ],
     credentials: true,
   }),
 );

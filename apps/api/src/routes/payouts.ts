@@ -66,7 +66,13 @@ router.post("/generate", requireAuth, requireRole("ADMIN"), async (req, res, nex
     });
     const totalAdSpend = adSpend._sum.amountPaise ?? 0;
 
-    const netAmount = grossSales - totalCommission - totalRefunds - totalAdSpend;
+    // Clamp at 0: deductions (commission + refunds + ad spend) can exceed
+    // gross sales in heavy-refund or refunds-only periods. We never owe the
+    // vendor a negative payout — the carry-forward is an accounting concern
+    // (deficit shows in the next period as those refund/ad rows recur, but
+    // we don't let the recorded payout row go negative or call wallet
+    // increment with a negative number).
+    const netAmount = Math.max(0, grossSales - totalCommission - totalRefunds - totalAdSpend);
 
     const payout = await prisma.payout.create({
       data: {

@@ -75,7 +75,7 @@ export default function AdminSettingsPage() {
             "commissionThreshold",
             "Threshold (paise)",
             "number",
-            "50000 = ₹500",
+            "49900 = ₹499 (default)",
           )}
           {field("commissionPercentBelow", "Commission % (below threshold)", "number", "Default 5%")}
         </div>
