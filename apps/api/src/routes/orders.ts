@@ -261,9 +261,15 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
     // cancel could end up with status=CANCELLED, stock restored, and no refund
     // issued, with the cancel-guard above blocking any retry.
     const updated = await prisma.$transaction(async (tx) => {
-      const o = await tx.order.update({
-        where: { id: order.id },
+      // Race-safe status flip: only the first concurrent cancel request wins.
+      const claim = await tx.order.updateMany({
+        where: { id: order.id, status: { in: ["PLACED", "CONFIRMED"] } },
         data: { status: "CANCELLED" },
+      });
+      if (claim.count === 0)
+        throw new HttpError(400, "Order cannot be cancelled at this stage");
+      const o = await tx.order.findUniqueOrThrow({
+        where: { id: order.id },
         include: { items: true },
       });
       // restock
