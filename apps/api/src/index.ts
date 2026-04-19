@@ -36,6 +36,7 @@ import qaRouter from "./routes/qa";
 import alertsRouter from "./routes/alerts";
 import recentlyRouter from "./routes/recently";
 import compareRouter from "./routes/compare";
+import pushRouter from "./routes/push";
 
 const app = express();
 
@@ -152,6 +153,7 @@ app.use("/api/qa", qaRouter);
 app.use("/api/alerts", alertsRouter);
 app.use("/api/recently-viewed", recentlyRouter);
 app.use("/api/compare", compareRouter);
+app.use("/api/push", pushRouter);
 
 // Sitemap & robots
 app.get("/sitemap.xml", async (_req, res, next) => {

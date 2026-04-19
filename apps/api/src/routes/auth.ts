@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../lib/prisma";
 import { signJwt } from "../lib/jwt";
 import { createOtp, verifyOtp } from "../lib/otp";
@@ -8,6 +9,59 @@ import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 
 const router = Router();
+
+const googleClient = new OAuth2Client();
+
+// Google sign-in: client obtains an ID token (via @react-oauth/google
+// GoogleLogin component), posts it here; we verify the token with
+// Google's public keys, then either link it to an existing user
+// (matching email) or create a new one. Issue our own JWT like login.
+router.post("/google", async (req, res, next) => {
+  try {
+    const { idToken } = z.object({ idToken: z.string().min(20) }).parse(req.body);
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) throw new HttpError(503, "Google sign-in not configured");
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email) {
+      throw new HttpError(401, "Invalid Google token");
+    }
+    const { sub: googleId, email, name, picture, email_verified } = payload;
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ googleId }, { email }] },
+    });
+    if (user) {
+      // Link googleId on first Google login if only email matched
+      if (!user.googleId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId,
+            emailVerified: email_verified ? true : user.emailVerified,
+            avatar: user.avatar ?? picture ?? null,
+          },
+        });
+      }
+    } else {
+      user = await prisma.user.create({
+        data: {
+          name: name ?? "Google User",
+          email,
+          googleId,
+          emailVerified: email_verified ?? false,
+          avatar: picture ?? null,
+        },
+      });
+    }
+    const token = signJwt({ sub: user.id, role: user.role, email: user.email, phone: user.phone });
+    res.json({ token, user: sanitize(user) });
+  } catch (e) {
+    next(e);
+  }
+});
 
 const registerSchema = z.object({
   name: z.string().min(2),

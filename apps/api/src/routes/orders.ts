@@ -9,6 +9,8 @@ import { computeCommission } from "../lib/commission";
 import { notify } from "../lib/notify";
 import { creditUserWallet, debitUserWallet } from "../lib/wallet";
 import { getSettings } from "../lib/settings";
+import { sendWhatsApp } from "../lib/whatsapp";
+import { sendPushToUser } from "../lib/push";
 
 const router = Router();
 
@@ -265,6 +267,67 @@ router.post("/", requireAuth, async (req, res, next) => {
         `Your order has been placed successfully.`,
         `/orders/${order.id}`,
       );
+
+      // Web push to buyer (best-effort, no-op if VAPID not configured)
+      void sendPushToUser(userId, {
+        title: `Order placed: ${order.orderNumber}`,
+        body: `Your order of ₹${(order.total / 100).toFixed(0)} has been received.`,
+        url: `/orders/${order.id}`,
+      });
+
+      // Notify each vendor whose items are in this order over WhatsApp +
+      // in-app + push + email. Grouped by vendor so each vendor sees
+      // only their own items. Refetch with includes so relation types
+      // survive the $transaction return-type narrowing.
+      const full = await prisma.order.findUnique({
+        where: { id: order.id },
+        include: { items: true, address: true },
+      });
+      if (full) {
+        const vendorIds: string[] = Array.from(
+          new Set(full.items.map((i) => i.vendorId)),
+        );
+        const vendors = await prisma.vendor.findMany({
+          where: { id: { in: vendorIds } },
+          include: {
+            user: { select: { id: true, name: true, phone: true, email: true } },
+          },
+        });
+        const webUrl = process.env.WEB_URL ?? "https://sktmart.vercel.app";
+        for (const v of vendors) {
+          const vItems = full.items.filter((i) => i.vendorId === v.id);
+          const lineTotal = vItems.reduce(
+            (s, i) => s + i.price * i.quantity,
+            0,
+          );
+          const lines = vItems
+            .map((i) => `• ${i.name} × ${i.quantity}`)
+            .join("\n");
+          const msg =
+            `🛒 *New order on SKT Mart*\n` +
+            `Order: ${full.orderNumber}\n` +
+            `Customer: ${full.address?.name ?? ""}\n` +
+            `Pincode: ${full.address?.pincode ?? ""}\n\n` +
+            `${lines}\n\n` +
+            `Your earnings: ₹${(lineTotal / 100).toFixed(0)}\n` +
+            `Manage: ${webUrl}/vendor/orders`;
+          if (v.user?.phone) void sendWhatsApp(v.user.phone, msg);
+          if (v.user?.id) {
+            await notify(
+              v.user.id,
+              "ORDER",
+              `New order: ${full.orderNumber}`,
+              `${vItems.length} item(s), total ₹${(lineTotal / 100).toFixed(0)}.`,
+              `/vendor/orders`,
+            );
+            void sendPushToUser(v.user.id, {
+              title: `New order: ${full.orderNumber}`,
+              body: `${vItems.length} item(s) · ₹${(lineTotal / 100).toFixed(0)}`,
+              url: `/vendor/orders`,
+            });
+          }
+        }
+      }
     } catch (sideEffectErr) {
       console.error(`[orders] post-commit side-effects failed for order ${order.id}`, sideEffectErr);
     }

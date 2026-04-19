@@ -149,7 +149,23 @@ model User {
   auditLogs         AuditLog[]
   comparisons       Comparison[]
   searchLogs        SearchLog[]
+  pushSubscriptions PushSubscription[]
+  googleId          String?              @unique
   deletedAt         DateTime?
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Otp {
