@@ -18,6 +18,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="container-page py-4 grid md:grid-cols-[220px_1fr] gap-4">
       <aside className="card p-3 text-sm space-y-1 h-fit sticky top-4">
+        <Link href="/admin" className="flex items-center gap-2 px-2 py-2 mb-1 border-b">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.jpg" alt="SKT Mart" className="h-9 w-auto" />
+          <div className="leading-tight">
+            <p className="text-sm font-semibold italic">SKT Mart</p>
+            <p className="text-[10px] text-gray-500">Admin Panel</p>
+          </div>
+        </Link>
         <p className="px-3 text-[10px] font-semibold uppercase text-gray-500">Main</p>
         <Link href="/admin" className="block px-3 py-2 rounded hover:bg-gray-100">Dashboard</Link>
         <Link href="/admin/analytics" className="block px-3 py-2 rounded hover:bg-gray-100">Analytics</Link>

@@ -15,9 +15,9 @@ export default function WalletPage() {
 
   async function load() {
     if (!token) return;
-    const w = await api<{ balance: number; loyaltyPoints: number; transactions: WalletTransaction[] }>("/api/wallet/", { token });
+    const w = await api<{ balance: number; loyalty: number; transactions: WalletTransaction[] }>("/api/wallet/", { token });
     setBalance(w.balance);
-    setLoyalty(w.loyaltyPoints);
+    setLoyalty(w.loyalty);
     setTxns(w.transactions);
   }
 

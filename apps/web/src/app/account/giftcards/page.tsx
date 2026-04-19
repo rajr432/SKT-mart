@@ -42,8 +42,8 @@ export default function GiftCardsPage() {
 
   async function doRedeem() {
     try {
-      const r = await api<{ credited: number }>("/api/giftcards/redeem", { method: "POST", token, json: { code: redeem } });
-      setMsg(`Credited ${formatPaise(r.credited)} to wallet`);
+      const r = await api<{ creditedPaise: number }>("/api/giftcards/redeem", { method: "POST", token, json: { code: redeem } });
+      setMsg(`Credited ${formatPaise(r.creditedPaise)} to wallet`);
       setRedeem("");
       load();
     } catch (e) { setMsg((e as Error).message); }

@@ -36,7 +36,15 @@ export default function AdminPayoutsPage() {
   async function generate() {
     if (!form.vendorId || !form.start || !form.end) return;
     try {
-      await api("/api/payouts/generate", { method: "POST", token, json: form });
+      await api("/api/payouts/generate", {
+        method: "POST",
+        token,
+        json: {
+          vendorId: form.vendorId,
+          periodStart: new Date(form.start).toISOString(),
+          periodEnd: new Date(form.end).toISOString(),
+        },
+      });
       setMsg("Generated ✓");
       load();
     } catch (e) {

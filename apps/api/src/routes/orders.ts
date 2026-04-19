@@ -132,13 +132,15 @@ router.post("/", requireAuth, async (req, res, next) => {
       return created;
     });
 
-    // Award loyalty points (1 coin per ₹100 spent)
+    // Award loyalty points (1 coin per ₹100 spent). breakup.total is in paise,
+    // so ₹100 = 10000 paise. settings.loyaltyEarnPer100 is coins earned per ₹100.
     const settings = await getSettings();
-    const points = Math.floor(breakup.total / (100 * settings.loyaltyEarnPer100));
+    const points = Math.floor(breakup.total / 10000) * settings.loyaltyEarnPer100;
     if (points > 0) {
-      await prisma.user.update({
+      const updated = await prisma.user.update({
         where: { id: userId },
         data: { loyaltyPoints: { increment: points } },
+        select: { loyaltyPoints: true },
       });
       await prisma.loyaltyTransaction.create({
         data: {
@@ -146,7 +148,7 @@ router.post("/", requireAuth, async (req, res, next) => {
           points,
           reason: "ORDER_EARN",
           ref: order.id,
-          balanceAfter: 0,
+          balanceAfter: updated.loyaltyPoints,
         },
       });
     }

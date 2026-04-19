@@ -7,7 +7,7 @@ import { api, formatPaise } from "@/lib/api";
 interface ReferralInfo {
   code: string;
   referredBy?: string | null;
-  referred: Array<{ id: string; name: string; createdAt: string }>;
+  referrals: Array<{ id: string; name: string; createdAt: string }>;
   bonusPaise: number;
 }
 
@@ -78,11 +78,11 @@ export default function ReferralPage() {
 
       <section className="card p-4">
         <h2 className="font-semibold mb-3">Friends you&apos;ve referred</h2>
-        {info.referred.length === 0 ? (
+        {info.referrals.length === 0 ? (
           <p className="text-sm text-gray-500">No referrals yet.</p>
         ) : (
           <ul className="divide-y text-sm">
-            {info.referred.map((r) => (
+            {info.referrals.map((r) => (
               <li key={r.id} className="py-2 flex justify-between">
                 <span>{r.name}</span>
                 <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</span>

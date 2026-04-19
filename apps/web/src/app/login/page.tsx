@@ -63,11 +63,17 @@ function LoginForm() {
   return (
     <div className="container-page py-10 max-w-4xl">
       <div className="card grid md:grid-cols-[1fr_1.3fr] overflow-hidden">
-        <aside className="bg-brand text-white p-8 hidden md:block">
-          <h2 className="text-2xl font-semibold">Login</h2>
-          <p className="text-sm mt-3 text-blue-100">
-            Get access to your Orders, Wishlist and Recommendations.
-          </p>
+        <aside className="bg-brand text-white p-8 hidden md:flex md:flex-col md:items-start md:gap-6">
+          <span className="bg-white rounded-lg p-3 inline-flex shadow">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.jpg" alt="SKT Mart" className="h-16 w-auto" />
+          </span>
+          <div>
+            <h2 className="text-2xl font-semibold">Login</h2>
+            <p className="text-sm mt-3 text-blue-100">
+              Get access to your Orders, Wishlist and Recommendations.
+            </p>
+          </div>
         </aside>
         <form onSubmit={submit} className="p-6 space-y-4">
           <div className="flex gap-2 text-sm">

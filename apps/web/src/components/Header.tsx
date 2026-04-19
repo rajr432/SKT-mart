@@ -46,9 +46,14 @@ export default function Header() {
   return (
     <header className="bg-brand text-white sticky top-0 z-40 shadow">
       <div className="container-page flex items-center gap-3 py-2.5">
-        <Link href="/" className="flex items-baseline gap-1 shrink-0">
-          <span className="text-xl font-bold italic">SKT</span>
-          <span className="text-xs italic text-brand-yellow">Mart</span>
+        <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="SKT Mart home">
+          <span className="bg-white rounded-md p-1 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.jpg" alt="SKT Mart" className="h-8 w-auto" />
+          </span>
+          <span className="hidden md:inline text-[11px] italic text-brand-yellow leading-tight">
+            Shop Smart,<br />Live Better
+          </span>
         </Link>
 
         <form onSubmit={submit} className="relative flex-1 max-w-2xl">
