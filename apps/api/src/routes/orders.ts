@@ -186,11 +186,18 @@ router.post("/", requireAuth, async (req, res, next) => {
         });
       }
 
+      // Race-safe stock decrement: conditional updateMany with `stock >= qty`
+      // guard. Two concurrent orders on the same last-1 item cannot both
+      // succeed — the loser sees count===0, throws, and the whole order tx
+      // rolls back (no partial order, no negative stock).
       for (const ci of cartItems) {
-        await tx.product.update({
-          where: { id: ci.productId },
+        const claim = await tx.product.updateMany({
+          where: { id: ci.productId, stock: { gte: ci.quantity } },
           data: { stock: { decrement: ci.quantity } },
         });
+        if (claim.count === 0) {
+          throw new HttpError(400, `Out of stock: ${ci.product.name}`);
+        }
       }
       await tx.cartItem.deleteMany({ where: { userId } });
 
