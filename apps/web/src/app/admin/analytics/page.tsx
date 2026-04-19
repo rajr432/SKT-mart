@@ -99,15 +99,31 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="card p-4">
-        <a
-          href={(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/admin/export/orders.csv"}
-          className="btn-primary inline-block"
-        >
+        <button className="btn-primary" onClick={() => downloadOrdersCsv(token)}>
           Download Orders CSV
-        </a>
+        </button>
       </div>
     </div>
   );
+}
+
+async function downloadOrdersCsv(token: string | null) {
+  if (!token) return;
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const res = await fetch(base + "/api/admin/export/orders.csv", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    alert(`Failed to download CSV: ${res.status}`);
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "orders.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function Card({ label, value }: { label: string; value: string }) {

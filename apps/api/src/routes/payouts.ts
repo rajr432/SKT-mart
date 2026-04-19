@@ -107,22 +107,31 @@ router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res
     const p = await prisma.payout.findUnique({ where: { id: req.params.id } });
     if (!p) return res.status(404).json({ error: "Not found" });
     if (p.status === "PAID") return res.status(400).json({ error: "Already paid" });
-    const updated = await prisma.payout.update({
-      where: { id: p.id },
-      data: { status: "PAID", utr, notes, paidAt: new Date() },
-    });
-    // Credit vendor wallet only when the settlement is actually positive.
-    // A non-positive net means deductions (refunds + commission + ad spend)
-    // exceeded gross sales; we record the payout but skip the wallet credit
-    // to avoid a CREDIT row with a negative amount.
-    if (p.netAmount > 0) {
-      await creditVendorWallet(p.vendorId, {
-        amountPaise: p.netAmount,
-        reason: "PAYOUT",
-        ref: p.id,
-        note: `Settlement ${p.id} via UTR ${utr}`,
+    // Atomic: flip to PAID and credit the vendor wallet together. Without this,
+    // a wallet failure would leave the payout stuck in PAID (the guard above
+    // blocks retries) while the vendor never receives the settlement.
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.payout.update({
+        where: { id: p.id },
+        data: { status: "PAID", utr, notes, paidAt: new Date() },
       });
-    }
+      // Credit only when net is actually positive; a non-positive net means
+      // deductions exceeded gross sales, in which case we record the payout
+      // but skip the wallet credit (no negative CREDIT rows).
+      if (p.netAmount > 0) {
+        await creditVendorWallet(
+          p.vendorId,
+          {
+            amountPaise: p.netAmount,
+            reason: "PAYOUT",
+            ref: p.id,
+            note: `Settlement ${p.id} via UTR ${utr}`,
+          },
+          tx,
+        );
+      }
+      return row;
+    });
     await audit(req.user!.sub, "PAYOUT_PAID", "Payout", p.id, { utr, netAmount: p.netAmount });
     res.json({ payout: updated });
   } catch (e) {
