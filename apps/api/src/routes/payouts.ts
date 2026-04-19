@@ -160,8 +160,10 @@ router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res
   }
 });
 
-// Vendor: my payouts
-router.get("/mine", requireAuth, async (req, res, next) => {
+// Vendor: my payouts. requireRole("VENDOR") so non-vendor authenticated
+// users (customers, etc.) can't probe this endpoint and learn the route
+// shape — they get a clean 403 instead of 404.
+router.get("/mine", requireAuth, requireRole("VENDOR"), async (req, res, next) => {
   try {
     const v = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!v) return res.status(404).json({ error: "Vendor not found" });
