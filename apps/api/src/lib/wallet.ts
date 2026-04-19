@@ -35,16 +35,18 @@ async function creditUser(tx: Tx, userId: string, input: WalletTxnInput) {
 }
 
 async function debitUser(tx: Tx, userId: string, input: WalletTxnInput) {
-  const cur = await tx.user.findUnique({
-    where: { id: userId },
-    select: { walletBalance: true },
-  });
-  if (!cur || cur.walletBalance < input.amountPaise) {
-    throw new Error("Insufficient wallet balance");
-  }
-  const u = await tx.user.update({
-    where: { id: userId },
+  // Race-safe debit: the sufficiency check and the decrement are a single
+  // conditional UPDATE. Two concurrent debits cannot both "pass the check" —
+  // whichever transaction loses the row-level lock re-evaluates the predicate
+  // against the freshly committed balance and either succeeds (if there's
+  // still enough) or is rejected by claim.count === 0.
+  const claim = await tx.user.updateMany({
+    where: { id: userId, walletBalance: { gte: input.amountPaise } },
     data: { walletBalance: { decrement: input.amountPaise } },
+  });
+  if (claim.count === 0) throw new Error("Insufficient wallet balance");
+  const u = await tx.user.findUniqueOrThrow({
+    where: { id: userId },
     select: { walletBalance: true },
   });
   return tx.walletTransaction.create({
@@ -80,16 +82,14 @@ async function creditVendor(tx: Tx, vendorId: string, input: WalletTxnInput) {
 }
 
 async function debitVendor(tx: Tx, vendorId: string, input: WalletTxnInput) {
-  const cur = await tx.vendor.findUnique({
-    where: { id: vendorId },
-    select: { walletBalance: true },
-  });
-  if (!cur || cur.walletBalance < input.amountPaise) {
-    throw new Error("Insufficient vendor wallet balance");
-  }
-  const v = await tx.vendor.update({
-    where: { id: vendorId },
+  // Race-safe debit — see debitUser for rationale.
+  const claim = await tx.vendor.updateMany({
+    where: { id: vendorId, walletBalance: { gte: input.amountPaise } },
     data: { walletBalance: { decrement: input.amountPaise } },
+  });
+  if (claim.count === 0) throw new Error("Insufficient vendor wallet balance");
+  const v = await tx.vendor.findUniqueOrThrow({
+    where: { id: vendorId },
     select: { walletBalance: true },
   });
   return tx.walletTransaction.create({

@@ -29,12 +29,19 @@ router.post("/", requireAuth, async (req, res, next) => {
     if (!order || order.userId !== req.user!.sub) return res.status(404).json({ error: "Not found" });
     if (order.status !== "DELIVERED") return res.status(400).json({ error: "Only delivered orders can be returned" });
 
+    // Prorate the order-level discount (coupons etc.) across returned items.
+    // The sum of order.items[].price * quantity is the pre-coupon item total;
+    // order.total already accounts for every discount. Refunding raw price*qty
+    // would over-credit the customer by the coupon portion, e.g. pay ₹900 with
+    // a ₹100 coupon on a ₹1000 item → return it → get ₹1000 wallet credit.
+    const grossItemTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const refundRatio = grossItemTotal > 0 ? order.total / grossItemTotal : 1;
     let refundPaise = 0;
     const itemsData = body.items.map((reqItem) => {
       const oi = order.items.find((x) => x.id === reqItem.orderItemId);
       if (!oi) throw new Error("Order item not found");
       const qty = Math.min(reqItem.quantity, oi.quantity);
-      const refund = oi.price * qty;
+      const refund = Math.round(oi.price * qty * refundRatio);
       refundPaise += refund;
       return { orderItemId: oi.id, productId: oi.productId, quantity: qty, refundPaise: refund };
     });

@@ -20,14 +20,22 @@ async function chargeAndRecord(
     await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.findFirst({
         where: { campaigns: { some: { id: campaignId } } },
-        select: { id: true, walletBalance: true },
+        select: { id: true },
       });
       if (!v) throw new Error("Vendor not found");
-      if (v.walletBalance < costPaise) throw new Error("Insufficient vendor wallet");
 
-      const vendor = await tx.vendor.update({
-        where: { id: v.id },
+      // Race-safe debit: conditional UPDATE guards against two concurrent ad
+      // charges both passing a stale sufficiency check and driving the wallet
+      // negative. If the WHERE predicate doesn't match, claim.count === 0 and
+      // we throw the canonical "Insufficient vendor wallet" so the outer
+      // catch pauses the campaign.
+      const claim = await tx.vendor.updateMany({
+        where: { id: v.id, walletBalance: { gte: costPaise } },
         data: { walletBalance: { decrement: costPaise } },
+      });
+      if (claim.count === 0) throw new Error("Insufficient vendor wallet");
+      const vendor = await tx.vendor.findUniqueOrThrow({
+        where: { id: v.id },
         select: { walletBalance: true },
       });
       await tx.walletTransaction.create({
