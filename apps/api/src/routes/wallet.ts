@@ -68,18 +68,7 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
       body.razorpaySignature,
     );
     if (!valid) throw new HttpError(400, "Invalid signature");
-    // Global dedupe across ALL wallet contexts + vendor-registration refs.
-    // Scoped-by-userId alone let a user-who-is-also-a-vendor replay the
-    // same (orderId, paymentId, signature) against the user-wallet and
-    // vendor-wallet endpoints to double-credit themselves. Mirror the
-    // pattern used in vendor.ts registration confirm.
-    const [dup, dupVendor] = await Promise.all([
-      prisma.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
-      prisma.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
-    ]);
-    if (dup && dup.userId === req.user!.sub) return res.json({ transaction: dup });
-    if (dup || dupVendor) throw new HttpError(400, "Payment already consumed");
-    // Fetch amount from Razorpay to avoid client tampering
+    // Verify with Razorpay BEFORE entering the tx so the tx is short.
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
@@ -90,17 +79,33 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
       throw new HttpError(400, "Invalid payment amount");
     if (payment.status !== "captured" && payment.status !== "authorized")
       throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
-    const txn = await creditUserWallet(req.user!.sub, {
-      amountPaise,
-      reason: "RECHARGE",
-      ref: body.razorpayPaymentId,
-      note: "Razorpay recharge",
+
+    // Atomic dedupe + credit. Two concurrent confirms with the same
+    // razorpayPaymentId cannot both pass the dedupe check because they run
+    // in a single serialized interactive transaction — the second one sees
+    // the first one's WalletTransaction row and short-circuits.
+    const userId = req.user!.sub;
+    const result = await prisma.$transaction(async (tx) => {
+      const [dup, dupVendor] = await Promise.all([
+        tx.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
+        tx.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
+      ]);
+      if (dup && dup.userId === userId) return { txn: dup, dedup: true as const };
+      if (dup || dupVendor) throw new HttpError(400, "Payment already consumed");
+      const txn = await creditUserWallet(
+        userId,
+        { amountPaise, reason: "RECHARGE", ref: body.razorpayPaymentId, note: "Razorpay recharge" },
+        tx,
+      );
+      return { txn, dedup: false as const };
     });
-    await audit(req.user!.sub, "WALLET_RECHARGE", "User", req.user!.sub, {
-      amountPaise,
-      paymentId: body.razorpayPaymentId,
-    });
-    res.json({ transaction: txn });
+    if (!result.dedup) {
+      await audit(userId, "WALLET_RECHARGE", "User", userId, {
+        amountPaise,
+        paymentId: body.razorpayPaymentId,
+      });
+    }
+    res.json({ transaction: result.txn });
   } catch (e) {
     next(e);
   }
@@ -177,15 +182,6 @@ router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
       body.razorpaySignature,
     );
     if (!valid) throw new HttpError(400, "Invalid signature");
-    // Global dedupe — see comment in /recharge/confirm above. Prevents
-    // cross-context replay (user wallet → vendor wallet, or either to
-    // vendor registration fee).
-    const [dup, dupVendorReg] = await Promise.all([
-      prisma.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
-      prisma.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
-    ]);
-    if (dup && dup.vendorId === v.id) return res.json({ transaction: dup });
-    if (dup || dupVendorReg) throw new HttpError(400, "Payment already consumed");
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
@@ -196,13 +192,28 @@ router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
       throw new HttpError(400, "Invalid payment amount");
     if (payment.status !== "captured" && payment.status !== "authorized")
       throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
-    const txn = await creditVendorWallet(v.id, {
-      amountPaise,
-      reason: "RECHARGE",
-      ref: body.razorpayPaymentId,
-      note: "Razorpay vendor recharge",
+
+    // Atomic dedupe + credit — see /recharge/confirm above.
+    const vendorId = v.id;
+    const result = await prisma.$transaction(async (tx) => {
+      const [dup, dupVendorReg] = await Promise.all([
+        tx.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
+        tx.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
+      ]);
+      if (dup && dup.vendorId === vendorId) return dup;
+      if (dup || dupVendorReg) throw new HttpError(400, "Payment already consumed");
+      return creditVendorWallet(
+        vendorId,
+        {
+          amountPaise,
+          reason: "RECHARGE",
+          ref: body.razorpayPaymentId,
+          note: "Razorpay vendor recharge",
+        },
+        tx,
+      );
     });
-    res.json({ transaction: txn });
+    res.json({ transaction: result });
   } catch (e) {
     next(e);
   }

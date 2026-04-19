@@ -56,6 +56,7 @@ export default function PushSubscribePrompt() {
       const raw = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
       await api("/api/push/subscribe", {
         method: "POST",
+        token,
         json: {
           endpoint: raw.endpoint,
           keys: { p256dh: raw.keys?.p256dh, auth: raw.keys?.auth },

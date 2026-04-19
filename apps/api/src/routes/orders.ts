@@ -296,10 +296,10 @@ router.post("/", requireAuth, async (req, res, next) => {
         const webUrl = process.env.WEB_URL ?? "https://sktmart.vercel.app";
         for (const v of vendors) {
           const vItems = full.items.filter((i) => i.vendorId === v.id);
-          const lineTotal = vItems.reduce(
-            (s, i) => s + i.price * i.quantity,
-            0,
-          );
+          // Gross is what the customer paid for these items (before commission);
+          // net is what the vendor actually earns after platform commission.
+          const grossTotal = vItems.reduce((s, i) => s + i.price * i.quantity, 0);
+          const netEarnings = vItems.reduce((s, i) => s + i.vendorEarn, 0);
           const lines = vItems
             .map((i) => `• ${i.name} × ${i.quantity}`)
             .join("\n");
@@ -309,7 +309,8 @@ router.post("/", requireAuth, async (req, res, next) => {
             `Customer: ${full.address?.name ?? ""}\n` +
             `Pincode: ${full.address?.pincode ?? ""}\n\n` +
             `${lines}\n\n` +
-            `Your earnings: ₹${(lineTotal / 100).toFixed(0)}\n` +
+            `Order total: ₹${(grossTotal / 100).toFixed(0)}\n` +
+            `Your earnings (after commission): ₹${(netEarnings / 100).toFixed(0)}\n` +
             `Manage: ${webUrl}/vendor/orders`;
           if (v.user?.phone) void sendWhatsApp(v.user.phone, msg);
           if (v.user?.id) {
@@ -317,12 +318,12 @@ router.post("/", requireAuth, async (req, res, next) => {
               v.user.id,
               "ORDER",
               `New order: ${full.orderNumber}`,
-              `${vItems.length} item(s), total ₹${(lineTotal / 100).toFixed(0)}.`,
+              `${vItems.length} item(s) · earnings ₹${(netEarnings / 100).toFixed(0)}.`,
               `/vendor/orders`,
             );
             void sendPushToUser(v.user.id, {
               title: `New order: ${full.orderNumber}`,
-              body: `${vItems.length} item(s) · ₹${(lineTotal / 100).toFixed(0)}`,
+              body: `${vItems.length} item(s) · earnings ₹${(netEarnings / 100).toFixed(0)}`,
               url: `/vendor/orders`,
             });
           }

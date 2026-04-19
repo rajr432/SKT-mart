@@ -12,8 +12,16 @@ export default function RecentlyViewed() {
 
   useEffect(() => {
     if (!ready || !token) return;
-    api<{ items: Product[] }>("/api/recently-viewed", { token })
-      .then((r) => setItems((r.items ?? []).slice(0, 10)))
+    // Endpoint returns RecentlyViewed rows with `.product` nested; unwrap.
+    api<{ items: Array<{ product: Product }> }>("/api/recently-viewed", { token })
+      .then((r) =>
+        setItems(
+          (r.items ?? [])
+            .map((i) => i.product)
+            .filter((p): p is Product => !!p)
+            .slice(0, 10),
+        ),
+      )
       .catch(() => {});
   }, [ready, token]);
 

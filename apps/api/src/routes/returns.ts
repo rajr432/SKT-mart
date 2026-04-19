@@ -29,6 +29,24 @@ router.post("/", requireAuth, async (req, res, next) => {
     if (!order || order.userId !== req.user!.sub) return res.status(404).json({ error: "Not found" });
     if (order.status !== "DELIVERED") return res.status(400).json({ error: "Only delivered orders can be returned" });
 
+    // Prevent duplicate returns targeting the same order items. Without this,
+    // a customer could submit N returns for the same item and, if an admin
+    // approves each independently, get N refunds. REJECTED returns are fine
+    // to re-request against.
+    const requestedIds = body.items.map((i) => i.orderItemId);
+    const existingDup = await prisma.returnItem.findFirst({
+      where: {
+        orderItemId: { in: requestedIds },
+        return: { status: { notIn: ["REJECTED"] } },
+      },
+      include: { return: { select: { rmaNumber: true, status: true } } },
+    });
+    if (existingDup) {
+      return res.status(409).json({
+        error: `A return already exists for one or more of these items (RMA ${existingDup.return.rmaNumber}, status ${existingDup.return.status})`,
+      });
+    }
+
     // Prorate the order-level discount (coupons etc.) across returned items.
     // The sum of order.items[].price * quantity is the pre-coupon item total;
     // order.total already accounts for every discount. Refunding raw price*qty
