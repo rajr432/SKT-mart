@@ -370,21 +370,31 @@ router.get("/stats", async (req, res, next) => {
   try {
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!vendor) throw new HttpError(404, "Vendor profile not found");
-    const [productCount, orderAgg, pendingOrders] = await Promise.all([
+    const [productCount, orderAgg, pendingOrders, revenueRows] = await Promise.all([
       prisma.product.count({ where: { vendorId: vendor.id } }),
       prisma.orderItem.aggregate({
         where: { vendorId: vendor.id },
-        _sum: { price: true, quantity: true },
+        _sum: { quantity: true },
         _count: true,
       }),
       prisma.orderItem.count({
         where: { vendorId: vendor.id, status: { in: ["PLACED", "CONFIRMED"] } },
       }),
+      // Prisma aggregate doesn't support SUM(price * quantity); fetch the
+      // columns and fold in JS so vendors who sell multiple units per line
+      // see real revenue (a 10×₹500 line = ₹5,000, not ₹500).
+      prisma.orderItem.findMany({
+        where: { vendorId: vendor.id },
+        select: { price: true, quantity: true, vendorEarn: true },
+      }),
     ]);
+    const revenue = revenueRows.reduce((s, r) => s + r.price * r.quantity, 0);
+    const netEarn = revenueRows.reduce((s, r) => s + r.vendorEarn, 0);
     res.json({
       productCount,
       totalOrders: orderAgg._count,
-      revenue: (orderAgg._sum.price ?? 0) * 1, // already price * 1 per item (qty not multiplied in agg)
+      revenue,
+      netEarnings: netEarn,
       unitsSold: orderAgg._sum.quantity ?? 0,
       pendingOrders,
     });

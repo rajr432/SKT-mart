@@ -10,6 +10,21 @@ function newCode(): string {
   return "GC-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
 }
 
+// Generate a unique gift-card code, retrying on the rare birthday collision
+// against the @unique constraint on GiftCard.code. Without this retry, a
+// collision (Math.random ~ 36^8 space is small enough to matter at scale)
+// surfaces as a raw Prisma P2002 to the user after their wallet has been
+// debited inside the tx, and while the tx rolls back the customer sees a
+// cryptic 500. 5 attempts is vastly more than enough at any realistic scale.
+async function generateUniqueCode(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const code = newCode();
+    const existing = await tx.giftCard.findUnique({ where: { code }, select: { id: true } });
+    if (!existing) return code;
+  }
+  throw new Error("Failed to generate unique gift card code");
+}
+
 const buySchema = z.object({
   amountPaise: z.number().int().min(10000),
   recipient: z.string().optional(),
@@ -35,9 +50,10 @@ router.post("/buy", requireAuth, async (req, res, next) => {
           },
           tx,
         );
+        const code = await generateUniqueCode(tx);
         return tx.giftCard.create({
           data: {
-            code: newCode(),
+            code,
             amountPaise,
             balancePaise: amountPaise,
             buyerId: req.user!.sub,

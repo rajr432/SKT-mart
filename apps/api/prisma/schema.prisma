@@ -614,7 +614,9 @@ model AppSettings {
   // Order
   freeShippingMin        Int      @default(50000) // paise
   shippingFee            Int      @default(4000) // paise
-  taxPercent             Float    @default(18)
+  // Default 0: product prices are GST-inclusive (MRP). Admin can set >0
+  // from /admin/settings if they want tax as a separate line on the bill.
+  taxPercent             Float    @default(0)
   // Loyalty
   loyaltyEarnPer100      Int      @default(1) // 1 coin per ₹100
   loyaltyValuePaise      Int      @default(100) // 1 coin = ₹1
