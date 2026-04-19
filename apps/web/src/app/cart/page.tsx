@@ -13,6 +13,8 @@ export default function CartPage() {
   const router = useRouter();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shippingFee, setShippingFee] = useState(4000); // ₹40 default
+  const [freeShippingMin, setFreeShippingMin] = useState(50000); // ₹500 default
 
   useEffect(() => {
     if (!ready) return;
@@ -21,6 +23,12 @@ export default function CartPage() {
       return;
     }
     load();
+    api<{ shippingFee?: number; freeShippingMin?: number }>("/api/settings/public")
+      .then((s) => {
+        if (typeof s.shippingFee === "number") setShippingFee(s.shippingFee);
+        if (typeof s.freeShippingMin === "number") setFreeShippingMin(s.freeShippingMin);
+      })
+      .catch(() => {});
   }, [ready, token]);
 
   const load = async () => {
@@ -61,7 +69,7 @@ export default function CartPage() {
   const subtotal = items.reduce((s, i) => s + i.product.mrp * i.quantity, 0);
   const selling = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const discount = subtotal - selling;
-  const shipping = selling >= 49900 ? 0 : 4900;
+  const shipping = selling >= freeShippingMin ? 0 : shippingFee;
   const total = selling + shipping;
 
   return (

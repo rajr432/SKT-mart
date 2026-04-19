@@ -5,7 +5,7 @@ import { api, formatPaise } from "@/lib/api";
 import { useAuth } from "./AuthProvider";
 
 interface CartResp {
-  items: { price: number; quantity: number }[];
+  items: { quantity: number; product: { price: number } }[];
 }
 
 /** Shows progress toward the free-shipping threshold on cart page. */
@@ -17,7 +17,9 @@ export default function FreeShippingBar() {
   useEffect(() => {
     if (!token) return;
     api<CartResp>("/api/cart", { token })
-      .then((r) => setSubtotal(r.items.reduce((s, it) => s + it.price * it.quantity, 0)))
+      .then((r) =>
+        setSubtotal(r.items.reduce((s, it) => s + it.product.price * it.quantity, 0)),
+      )
       .catch(() => {});
     api<{ freeShippingMin: number }>("/api/settings/public")
       .then((s) => setThreshold(s.freeShippingMin ?? 50000))
