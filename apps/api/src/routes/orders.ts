@@ -261,9 +261,13 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           },
           tx,
         );
-        await tx.order.update({
+        // Apply the paymentStatus flip and return that row so the response
+        // reflects the final state; otherwise the client would see a stale
+        // `paymentStatus: "PAID"` until the next refresh.
+        return tx.order.update({
           where: { id: order.id },
           data: { paymentStatus: "REFUNDED" },
+          include: { items: true },
         });
       }
       return o;

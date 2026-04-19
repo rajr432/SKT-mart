@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
-import { creditUserWallet } from "../lib/wallet";
+import { creditUserWallet, debitUserWallet } from "../lib/wallet";
 
 const router = Router();
 
@@ -20,18 +20,40 @@ router.post("/buy", requireAuth, async (req, res, next) => {
   try {
     const { amountPaise, recipient, message } = buySchema.parse(req.body);
     const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-    const card = await prisma.giftCard.create({
-      data: {
-        code: newCode(),
-        amountPaise,
-        balancePaise: amountPaise,
-        buyerId: req.user!.sub,
-        recipient,
-        message,
-        expiresAt,
-      },
-    });
-    res.status(201).json({ giftCard: card });
+    // Gift cards must be paid for. We debit the buyer's wallet and mint the
+    // card atomically — either both happen or neither — so we can never issue
+    // free value. (Once a real payment gateway is wired in for off-wallet top-
+    // ups, this debit is still the correct authoritative source of funds.)
+    try {
+      const card = await prisma.$transaction(async (tx) => {
+        await debitUserWallet(
+          req.user!.sub,
+          {
+            amountPaise,
+            reason: "GIFT_CARD",
+            note: recipient ? `Gift card for ${recipient}` : "Gift card purchase",
+          },
+          tx,
+        );
+        return tx.giftCard.create({
+          data: {
+            code: newCode(),
+            amountPaise,
+            balancePaise: amountPaise,
+            buyerId: req.user!.sub,
+            recipient,
+            message,
+            expiresAt,
+          },
+        });
+      });
+      res.status(201).json({ giftCard: card });
+    } catch (err) {
+      if (err instanceof Error && err.message.toLowerCase().includes("insufficient")) {
+        return res.status(400).json({ error: "Insufficient wallet balance to buy this gift card" });
+      }
+      throw err;
+    }
   } catch (e) {
     next(e);
   }
