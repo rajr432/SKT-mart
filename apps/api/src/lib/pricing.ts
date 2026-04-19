@@ -41,7 +41,12 @@ export async function computePrice(
         coupon.type === "PERCENT"
           ? Math.floor((sellingTotal * coupon.value) / 100)
           : coupon.value;
-      couponDiscount = coupon.maxDiscount ? Math.min(raw, coupon.maxDiscount) : raw;
+      const capped = coupon.maxDiscount ? Math.min(raw, coupon.maxDiscount) : raw;
+      // Clamp to sellingTotal — a FLAT coupon with value > cart total must
+      // not produce a couponDiscount larger than the cart itself. Otherwise
+      // `Order.discount = discount + couponDiscount` (orders.ts) balloons
+      // past subtotal and breaks analytics / CSV exports / admin dashboards.
+      couponDiscount = Math.min(capped, sellingTotal);
     }
   }
 

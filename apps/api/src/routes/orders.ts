@@ -332,14 +332,19 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           data: { stock: { increment: it.quantity } },
         });
       }
-      if (order.paymentStatus === "PAID") {
+      // Read `paymentStatus` from the tx-fresh row (`o`), NOT the outer
+      // `order` — a concurrent Razorpay webhook could have flipped
+      // PENDING→PAID between the outer find and this tx, and skipping
+      // the refund there would permanently lose the customer's money
+      // (cancel-guard above would block any retry).
+      if (o.paymentStatus === "PAID") {
         await creditUserWallet(
-          order.userId,
+          o.userId,
           {
-            amountPaise: order.total,
+            amountPaise: o.total,
             reason: "REFUND",
-            ref: order.id,
-            note: `Refund for cancelled order ${order.orderNumber}`,
+            ref: o.id,
+            note: `Refund for cancelled order ${o.orderNumber}`,
           },
           tx,
         );
@@ -347,7 +352,7 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
         // reflects the final state; otherwise the client would see a stale
         // `paymentStatus: "PAID"` until the next refresh.
         return tx.order.update({
-          where: { id: order.id },
+          where: { id: o.id },
           data: { paymentStatus: "REFUNDED" },
           include: { items: true },
         });
