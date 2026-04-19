@@ -30,28 +30,35 @@ router.post("/google", async (req, res, next) => {
       throw new HttpError(401, "Invalid Google token");
     }
     const { sub: googleId, email, name, picture, email_verified } = payload;
-    let user = await prisma.user.findFirst({
-      where: { OR: [{ googleId }, { email }] },
-    });
+    // Account-takeover guard: only match/link by email if Google has verified
+    // it. Otherwise an attacker with an unverified Google Workspace email
+    // claiming a victim's email could log in as the victim.
+    const orClauses: Array<{ googleId: string } | { email: string }> = [{ googleId }];
+    if (email_verified) orClauses.push({ email });
+    let user = await prisma.user.findFirst({ where: { OR: orClauses } });
     if (user) {
-      // Link googleId on first Google login if only email matched
-      if (!user.googleId) {
+      // Link googleId on first Google login only when the matching email is
+      // verified by Google (or when we already matched on googleId itself).
+      if (!user.googleId && email_verified) {
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
             googleId,
-            emailVerified: email_verified ? true : user.emailVerified,
+            emailVerified: true,
             avatar: user.avatar ?? picture ?? null,
           },
         });
       }
     } else {
+      // Refuse to create an account with an unverified email — forces the
+      // attacker to actually own the email address before signup.
+      if (!email_verified) throw new HttpError(401, "Google email not verified");
       user = await prisma.user.create({
         data: {
           name: name ?? "Google User",
           email,
           googleId,
-          emailVerified: email_verified ?? false,
+          emailVerified: true,
           avatar: picture ?? null,
         },
       });

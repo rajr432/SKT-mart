@@ -79,7 +79,7 @@ function renderEmail(title: string, body: string, link?: string) {
       ${cta}
     </div>
     <div style="padding:12px 20px;border-top:1px solid #eee;color:#888;font-size:12px">
-      You received this because you have an account on <a href="${web}" style="color:#2874f0">SKT Mart</a>.
+      You received this because you have an account on <a href="${escapeHtml(web)}" style="color:#2874f0">SKT Mart</a>.
     </div>
   </div>
 </body></html>`;
