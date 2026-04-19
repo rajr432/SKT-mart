@@ -121,7 +121,11 @@ export default function CheckoutPage() {
         json: { addressId, paymentMethod: method, couponCode: coupon || undefined },
       });
 
-      if (method === "RAZORPAY") {
+      // UPI is collected through Razorpay's checkout modal (Razorpay
+      // supports UPI, cards, netbanking, wallet out of the box). Routing
+      // UPI here prevents orders from getting stuck in PENDING with no
+      // payment collection path.
+      if (method === "RAZORPAY" || method === "UPI") {
         const rzp = await api<{ razorpayOrderId: string; amount: number; keyId: string }>(
           "/api/payments/razorpay/create",
           { token, method: "POST", json: { orderId: order.id } },

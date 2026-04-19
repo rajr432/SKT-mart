@@ -143,6 +143,37 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!vendor) throw new HttpError(404, "Apply as vendor first");
     if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
+    // Dedupe: reject if this paymentId was already consumed by any other
+    // flow (wallet recharge, another vendor's registration, etc.). Without
+    // this, a user could pay ₹100 for a wallet recharge and replay the
+    // same (orderId, paymentId, signature) triplet here to get vendor
+    // activation for free — signature alone proves *authenticity* of the
+    // payment, not that the payment was intended for *this* purpose.
+    const [dupVendor, dupWallet] = await Promise.all([
+      prisma.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
+      prisma.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
+    ]);
+    if (dupVendor || dupWallet)
+      throw new HttpError(400, "Payment already consumed");
+    // Server-authoritative amount check — client-supplied amounts are
+    // unreliable. Fetch the captured/authorized amount directly from
+    // Razorpay and ensure it meets the configured vendor fee.
+    const rz = getRazorpay();
+    if (!rz) throw new HttpError(503, "Payment gateway not configured");
+    const payment = await rz.payments.fetch(body.razorpayPaymentId);
+    const amountPaise = typeof payment.amount === "number"
+      ? payment.amount
+      : parseInt(String(payment.amount), 10);
+    if (!Number.isFinite(amountPaise) || amountPaise <= 0)
+      throw new HttpError(400, "Invalid payment amount");
+    if (payment.status !== "captured" && payment.status !== "authorized")
+      throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
+    const s = await getSettings();
+    if (amountPaise < s.vendorRegistrationFee)
+      throw new HttpError(
+        400,
+        `Insufficient amount. Fee: ₹${(s.vendorRegistrationFee / 100).toFixed(0)}`,
+      );
     const updated = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.update({
         where: { id: vendor.id },

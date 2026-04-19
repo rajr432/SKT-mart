@@ -16,10 +16,9 @@ router.post("/", optionalAuth, async (req, res, next) => {
       update: { viewedAt: new Date() },
       create: { userId: req.user.sub, productId },
     });
-    await prisma.product.update({
-      where: { id: productId },
-      data: { views: { increment: 1 } },
-    });
+    // View counting is handled by GET /api/products/:slug. Skipping here
+    // prevents 2× inflation when the client calls both endpoints for the
+    // same page view, which breaks vendor analytics + ad bid scoring.
     res.json({ ok: true });
   } catch (e) {
     next(e);
