@@ -7,7 +7,9 @@ import { api, formatPaise } from "@/lib/api";
 
 interface Txn {
   id: string;
-  type: "EARN" | "REDEEM" | "EXPIRE";
+  // Backend stores signed points (positive = earn, negative = redeem) plus a
+  // free-form reason (ORDER_EARN, ORDER_REDEEM, REFERRAL, EXPIRY, …). There
+  // is no dedicated `type` column — derive sign/color from points directly.
   points: number;
   reason: string;
   createdAt: string;
@@ -101,29 +103,34 @@ export default function LoyaltyPage() {
               </tr>
             </thead>
             <tbody>
-              {d.transactions.map((t) => (
-                <tr key={t.id} className="border-t">
-                  <td className="py-2">{new Date(t.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    <span
-                      className={
-                        t.type === "EARN"
-                          ? "text-brand-green font-semibold"
-                          : t.type === "REDEEM"
-                            ? "text-red-600 font-semibold"
-                            : "text-gray-500"
-                      }
-                    >
-                      {t.type}
-                    </span>
-                  </td>
-                  <td>{t.reason}</td>
-                  <td className="text-right font-mono">
-                    {t.type === "EARN" ? "+" : "−"}
-                    {t.points}
-                  </td>
-                </tr>
-              ))}
+              {d.transactions.map((t) => {
+                const isEarn = t.points > 0;
+                const isRedeem = t.points < 0;
+                const label = isEarn ? "EARN" : isRedeem ? "REDEEM" : "EXPIRE";
+                return (
+                  <tr key={t.id} className="border-t">
+                    <td className="py-2">{new Date(t.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <span
+                        className={
+                          isEarn
+                            ? "text-brand-green font-semibold"
+                            : isRedeem
+                              ? "text-red-600 font-semibold"
+                              : "text-gray-500"
+                        }
+                      >
+                        {label}
+                      </span>
+                    </td>
+                    <td>{t.reason}</td>
+                    <td className="text-right font-mono">
+                      {isEarn ? "+" : isRedeem ? "−" : ""}
+                      {Math.abs(t.points)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

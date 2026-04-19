@@ -40,19 +40,22 @@ router.get("/", requireAuth, requireRole("ADMIN"), async (_req, res, next) => {
 
 const updateSchema = z.object({
   commissionPercent: z.number().min(0).max(100).optional(),
-  commissionThreshold: z.number().min(0).optional(),
+  // Paise/integer columns: Prisma's Int fields reject fractional JS numbers
+  // with an unhandled error, so validate .int() here to surface a 400 to the
+  // admin instead of a 500. Percent fields stay float-capable (0-100).
+  commissionThreshold: z.number().int().min(0).optional(),
   commissionPercentBelow: z.number().min(0).max(100).optional(),
-  vendorRegistrationFee: z.number().min(0).optional(),
-  freeShippingMin: z.number().min(0).optional(),
-  shippingFee: z.number().min(0).optional(),
+  vendorRegistrationFee: z.number().int().min(0).optional(),
+  freeShippingMin: z.number().int().min(0).optional(),
+  shippingFee: z.number().int().min(0).optional(),
   taxPercent: z.number().min(0).max(100).optional(),
-  loyaltyEarnPer100: z.number().min(0).optional(),
-  loyaltyValuePaise: z.number().min(0).optional(),
+  loyaltyEarnPer100: z.number().int().min(0).optional(),
+  loyaltyValuePaise: z.number().int().min(0).optional(),
   loyaltyMaxRedeemPct: z.number().min(0).max(100).optional(),
-  referralBonusPaise: z.number().min(0).optional(),
-  adMinBudgetPaise: z.number().min(0).optional(),
-  adClickCostPaise: z.number().min(0).optional(),
-  adImpressionCostPaise: z.number().min(0).optional(),
+  referralBonusPaise: z.number().int().min(0).optional(),
+  adMinBudgetPaise: z.number().int().min(0).optional(),
+  adClickCostPaise: z.number().int().min(0).optional(),
+  adImpressionCostPaise: z.number().int().min(0).optional(),
   siteName: z.string().optional(),
   supportEmail: z.string().email().optional(),
   supportPhone: z.string().optional(),

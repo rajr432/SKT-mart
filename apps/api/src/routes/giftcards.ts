@@ -1,13 +1,20 @@
 import { Router } from "express";
 import { z } from "zod";
+import { randomBytes } from "crypto";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { creditUserWallet, debitUserWallet } from "../lib/wallet";
 
 const router = Router();
 
+// Use a CSPRNG (crypto.randomBytes) rather than Math.random so generated
+// gift-card codes cannot be predicted by observing a handful of prior codes
+// and deriving V8's internal PRNG state. Output is "GC-XXXX-XXXX" (8 hex
+// chars = 32 bits of entropy per code). Uniqueness is enforced by the DB
+// @unique constraint plus the generateUniqueCode retry loop below.
 function newCode(): string {
-  return "GC-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const hex = randomBytes(4).toString("hex").toUpperCase();
+  return "GC-" + hex.slice(0, 4) + "-" + hex.slice(4, 8);
 }
 
 // Generate a unique gift-card code, retrying on the rare birthday collision
