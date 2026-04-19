@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { api } from "@/lib/api";
 import type { User } from "@/lib/types";
+import GoogleSignIn from "@/components/GoogleSignIn";
 
 export default function LoginPage() {
   return (
@@ -144,6 +145,8 @@ function LoginForm() {
                   ? "Verify & Login"
                   : "Login"}
           </button>
+
+          <GoogleSignIn next={next} />
 
           <p className="text-sm text-center">
             New to SKT Mart?{" "}

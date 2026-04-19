@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
 import MobileDrawer from "./MobileDrawer";
+import VoiceSearch from "./VoiceSearch";
+import DarkModeToggle from "./DarkModeToggle";
 
 export default function Header() {
   const { user, token, logout } = useAuth();
@@ -88,13 +90,16 @@ export default function Header() {
             placeholder="Search for products, brands and more"
             className="w-full text-gray-900 text-sm rounded-sm px-3 py-2 pr-10 focus:outline-none"
           />
-          <button
-            type="submit"
-            className="absolute right-0 top-0 h-full px-3 text-brand"
-            aria-label="search"
-          >
-            🔍
-          </button>
+          <div className="absolute right-0 top-0 h-full flex items-center">
+            <VoiceSearch />
+            <button
+              type="submit"
+              className="h-full px-3 text-brand"
+              aria-label="search"
+            >
+              🔍
+            </button>
+          </div>
           {open && suggestions.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white text-gray-900 shadow-lg mt-1 z-50 max-h-72 overflow-auto">
               {suggestions.map((s) => (
@@ -112,6 +117,7 @@ export default function Header() {
         </form>
 
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
+          <DarkModeToggle />
           {user ? (
             <div className="relative group">
               <button className="flex items-center gap-1.5">

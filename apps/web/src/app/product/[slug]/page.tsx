@@ -6,6 +6,9 @@ import PincodeCheck from "./PincodeCheck";
 import EmiCalculator from "./EmiCalculator";
 import ReviewForm from "./ReviewForm";
 import ProductCard from "@/components/ProductCard";
+import TrustBadges from "@/components/TrustBadges";
+import DeliveryEstimator from "@/components/DeliveryEstimator";
+import SizeGuideButton from "@/components/SizeGuideButton";
 
 export const dynamic = "force-dynamic";
 
@@ -101,9 +104,16 @@ export default async function ProductPage({ params }: { params: { slug: string }
             </ul>
           </div>
 
+          <div className="flex items-center gap-3 flex-wrap">
+            <DeliveryEstimator />
+            <SizeGuideButton />
+          </div>
+
           <PincodeCheck />
 
           <EmiCalculator principalPaise={product.price} />
+
+          <TrustBadges />
 
           <div>
             <h3 className="font-medium text-gray-700 mt-4">Description</h3>

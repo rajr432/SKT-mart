@@ -16,6 +16,46 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Web Push — show a system notification when the server pushes a payload.
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch (_e) {
+    data = { title: "SKT Mart", body: event.data.text() };
+  }
+  const title = data.title || "SKT Mart";
+  const body = data.body || "";
+  const url = data.url || "/";
+  const icon = data.icon || "/logo.jpg";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge: icon,
+      data: { url },
+      vibrate: [100, 50, 100],
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if ("focus" in c) {
+          c.navigate(target);
+          return c.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;

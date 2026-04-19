@@ -103,7 +103,28 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       </div>
 
       <div className="card p-4">
-        <h3 className="font-medium mb-2">Items</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-medium">Items</h3>
+          <button
+            onClick={async () => {
+              try {
+                for (const it of order.items) {
+                  await api("/api/cart", {
+                    token: token!,
+                    method: "POST",
+                    json: { productId: it.productId, quantity: it.quantity },
+                  });
+                }
+                router.push("/cart");
+              } catch (e) {
+                alert((e as Error).message);
+              }
+            }}
+            className="text-xs bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"
+          >
+            🔄 Reorder all
+          </button>
+        </div>
         {order.items.map((it) => (
           <div key={it.id} className="flex justify-between items-start text-sm py-2 border-b last:border-0">
             <div>

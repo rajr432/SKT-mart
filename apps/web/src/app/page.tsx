@@ -3,6 +3,10 @@ import ProductCard from "@/components/ProductCard";
 import Hero3D from "@/components/Hero3D";
 import FlashDealTimer from "@/components/FlashDealTimer";
 import BrandStrip from "@/components/BrandStrip";
+import Testimonials from "@/components/Testimonials";
+import NewsletterSignup from "@/components/NewsletterSignup";
+import RecentlyViewed from "@/components/RecentlyViewed";
+import FestivalBanner from "@/components/FestivalBanner";
 import { api, discountPercent } from "@/lib/api";
 import type { Banner, Category, Product } from "@/lib/types";
 
@@ -46,6 +50,9 @@ export default async function HomePage() {
 
   return (
     <div className="container-page py-4 space-y-4">
+      {/* Seasonal festival banner */}
+      <FestivalBanner />
+
       {/* 3D animated hero carousel */}
       <Hero3D />
 
@@ -204,6 +211,15 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Recently viewed — personalised when logged in */}
+      <RecentlyViewed />
+
+      {/* Testimonials */}
+      <Testimonials />
+
+      {/* Newsletter signup */}
+      <NewsletterSignup />
     </div>
   );
 }
