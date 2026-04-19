@@ -1,11 +1,30 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../lib/prisma";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, optionalAuth } from "../middleware/auth";
 import { recordAdClick, recordAdImpression } from "../lib/ads";
 import { getSettings } from "../lib/settings";
 
 const router = Router();
+
+// Per-(IP,campaign) rate limiting on the public tracking endpoints to prevent
+// wallet-draining by anyone who knows a campaign id. Impressions get a higher
+// budget than clicks since they're cheaper.
+const impressionLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `imp:${req.ip}:${req.params.id}`,
+});
+const clickLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `clk:${req.ip}:${req.params.id}`,
+});
 
 async function getVendorId(userId: string) {
   const v = await prisma.vendor.findUnique({ where: { userId } });
@@ -116,13 +135,16 @@ router.delete("/:id", requireAuth, async (req, res, next) => {
   }
 });
 
-// Public tracking endpoints
-router.post("/track/impression/:id", async (req, res, next) => {
+// Public tracking endpoints. optionalAuth attaches req.user when the caller is
+// logged in; we deliberately ignore req.body.userId so the client cannot
+// attribute events to arbitrary users. The per-(IP, campaign) rate limiters
+// above cap the damage a single IP can inflict on any one vendor's wallet.
+router.post("/track/impression/:id", impressionLimiter, optionalAuth, async (req, res, next) => {
   try {
     await recordAdImpression(
       req.params.id,
       (await getSettings()).adImpressionCostPaise,
-      typeof req.body?.userId === "string" ? req.body.userId : undefined,
+      req.user?.sub,
     );
     res.json({ ok: true });
   } catch (e) {
@@ -130,12 +152,9 @@ router.post("/track/impression/:id", async (req, res, next) => {
   }
 });
 
-router.post("/track/click/:id", async (req, res, next) => {
+router.post("/track/click/:id", clickLimiter, optionalAuth, async (req, res, next) => {
   try {
-    await recordAdClick(
-      req.params.id,
-      typeof req.body?.userId === "string" ? req.body.userId : undefined,
-    );
+    await recordAdClick(req.params.id, req.user?.sub);
     res.json({ ok: true });
   } catch (e) {
     next(e);

@@ -65,7 +65,7 @@ app.use(
   express.static(path.resolve(process.env.UPLOAD_DIR ?? "./uploads")),
 );
 
-app.get("/api/health", (_req, res) => {
+app.get(["/health", "/api/health"], (_req, res) => {
   res.json({ ok: true, service: "skt-mart-api", time: new Date().toISOString() });
 });
 
@@ -100,33 +100,37 @@ app.use("/api/recently-viewed", recentlyRouter);
 app.use("/api/compare", compareRouter);
 
 // Sitemap & robots
-app.get("/sitemap.xml", async (_req, res) => {
-  const { prisma } = await import("./lib/prisma");
-  const products = await prisma.product.findMany({
-    where: { published: true },
-    select: { slug: true, updatedAt: true },
-    take: 5000,
-  });
-  const cats = await prisma.category.findMany({ select: { slug: true } });
-  const base = process.env.PUBLIC_URL ?? "https://sktmart.com";
-  const urls = [
-    `${base}/`,
-    `${base}/about`,
-    `${base}/contact`,
-    `${base}/privacy-policy`,
-    `${base}/return-policy`,
-    `${base}/terms`,
-    `${base}/shipping-policy`,
-    `${base}/refund-policy`,
-    ...cats.map((c) => `${base}/category/${c.slug}`),
-    ...products.map((p) => `${base}/product/${p.slug}`),
-  ];
-  res.set("Content-Type", "application/xml");
-  res.send(
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
-      .map((u) => `  <url><loc>${u}</loc></url>`)
-      .join("\n")}\n</urlset>`,
-  );
+app.get("/sitemap.xml", async (_req, res, next) => {
+  try {
+    const { prisma } = await import("./lib/prisma");
+    const products = await prisma.product.findMany({
+      where: { published: true },
+      select: { slug: true, updatedAt: true },
+      take: 5000,
+    });
+    const cats = await prisma.category.findMany({ select: { slug: true } });
+    const base = process.env.PUBLIC_URL ?? "https://sktmart.com";
+    const urls = [
+      `${base}/`,
+      `${base}/about`,
+      `${base}/contact`,
+      `${base}/privacy-policy`,
+      `${base}/return-policy`,
+      `${base}/terms`,
+      `${base}/shipping-policy`,
+      `${base}/refund-policy`,
+      ...cats.map((c) => `${base}/category/${c.slug}`),
+      ...products.map((p) => `${base}/product/${p.slug}`),
+    ];
+    res.set("Content-Type", "application/xml");
+    res.send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+        .map((u) => `  <url><loc>${u}</loc></url>`)
+        .join("\n")}\n</urlset>`,
+    );
+  } catch (e) {
+    next(e);
+  }
 });
 
 app.get("/robots.txt", (_req, res) => {

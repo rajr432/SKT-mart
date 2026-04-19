@@ -46,7 +46,9 @@ async function chargeAndRecord(
           spentPaise: { increment: costPaise },
           ...(type === "IMPRESSION"
             ? { impressions: { increment: 1 } }
-            : { clicks: { increment: 1 } }),
+            : type === "CLICK"
+              ? { clicks: { increment: 1 } }
+              : { conversions: { increment: 1 } }),
         },
       });
       await tx.adEvent.create({
@@ -54,12 +56,19 @@ async function chargeAndRecord(
       });
     });
     return "CHARGED";
-  } catch {
-    await prisma.adCampaign.update({
-      where: { id: campaignId },
-      data: { status: "PAUSED" },
-    });
-    return "PAUSED";
+  } catch (err) {
+    // Only pause the campaign for deterministic "can't fund this charge" errors.
+    // Transient DB failures must bubble up so the caller (route handler) can
+    // surface a 500 via the error middleware instead of silently disabling ads.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Insufficient vendor wallet" || msg === "Vendor not found") {
+      await prisma.adCampaign.update({
+        where: { id: campaignId },
+        data: { status: "PAUSED" },
+      });
+      return "PAUSED";
+    }
+    throw err;
   }
 }
 
