@@ -139,8 +139,14 @@ export async function getSponsoredProductIds(
   categoryId?: string,
   limit = 4,
 ): Promise<string[]> {
+  // Exclude campaigns whose spent ≥ budget. Without this filter, campaigns
+  // that have exhausted their budget but haven't been lazily flipped to
+  // COMPLETED still show up here and every page render fires a pointless
+  // chargeAndRecord tx that immediately throws "Budget exhausted". Prisma
+  // supports column-to-column comparison via `prisma.<model>.fields`.
   const where: Record<string, unknown> = {
     status: "ACTIVE",
+    spentPaise: { lt: prisma.adCampaign.fields.budgetPaise },
     OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
   };
   if (categoryId) {

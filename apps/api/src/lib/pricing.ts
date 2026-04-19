@@ -30,11 +30,16 @@ export async function computePrice(
   let couponDiscount = 0;
   if (couponCode) {
     const coupon = await prisma.coupon.findUnique({ where: { code: couponCode } });
+    const now = new Date();
     if (
       coupon &&
       coupon.active &&
       sellingTotal >= coupon.minOrder &&
-      (!coupon.expiresAt || coupon.expiresAt > new Date()) &&
+      // Honour scheduled activation — a coupon with a future startsAt must
+      // not be usable yet. Schema defaults startsAt to now(), so a row only
+      // fails this check when an admin explicitly set a future date.
+      coupon.startsAt <= now &&
+      (!coupon.expiresAt || coupon.expiresAt > now) &&
       (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit)
     ) {
       const raw =
