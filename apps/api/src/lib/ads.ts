@@ -19,23 +19,15 @@ async function chargeAndRecord(
   try {
     await prisma.$transaction(async (tx) => {
       // Re-read campaign inside tx to guard against concurrent callers who read
-      // the same stale remaining budget. If two threads each saw remaining=100
-      // and cost=100 outside the tx, we want only one of them to succeed.
-      const budgetClaim = await tx.adCampaign.updateMany({
-        where: {
-          id: campaignId,
-          status: "ACTIVE",
-          spentPaise: { lte: 2147483647 - costPaise }, // overflow guard
-          // Ensure spentPaise + cost <= budgetPaise by requiring budget ≥ spent + cost
-          // Prisma doesn't allow cross-column comparisons directly; enforce via raw guard below.
-        },
-        data: {},
-      });
-      if (budgetClaim.count === 0) throw new Error("Campaign not active");
+      // the same stale remaining budget. Status + budget are checked on the
+      // fresh row; the conditional spentPaise increment below provides the
+      // atomic claim (Prisma's updateMany requires a non-empty data clause,
+      // so we can't use it as a pure lock here).
       const camp = await tx.adCampaign.findUniqueOrThrow({
         where: { id: campaignId },
-        select: { budgetPaise: true, spentPaise: true, vendorId: true },
+        select: { status: true, budgetPaise: true, spentPaise: true, vendorId: true },
       });
+      if (camp.status !== "ACTIVE") throw new Error("Campaign not active");
       if (camp.spentPaise + costPaise > camp.budgetPaise) {
         throw new Error("Budget exhausted");
       }

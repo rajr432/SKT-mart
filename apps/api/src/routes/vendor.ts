@@ -68,12 +68,24 @@ router.post("/apply", requireAuth, async (req, res, next) => {
 // Step 2a: pay the one-time ₹199 lifetime fee via SKT wallet (instant).
 router.post("/pay-registration/wallet", requireAuth, async (req, res, next) => {
   try {
-    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
-    if (!vendor) throw new HttpError(404, "Apply as vendor first");
-    if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
     const s = await getSettings();
     const fee = s.vendorRegistrationFee;
     const updated = await prisma.$transaction(async (tx) => {
+      // Re-read + race-safe claim inside tx. Two concurrent calls cannot both
+      // flip registrationPaid=false → true; the loser's updateMany matches 0
+      // rows and aborts before the wallet debit runs.
+      const vendor = await tx.vendor.findUnique({ where: { userId: req.user!.sub } });
+      if (!vendor) throw new HttpError(404, "Apply as vendor first");
+      if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
+      const claim = await tx.vendor.updateMany({
+        where: { id: vendor.id, registrationPaid: false },
+        data: {
+          registrationPaid: true,
+          registrationPaidAt: new Date(),
+          status: "APPROVED",
+        },
+      });
+      if (claim.count === 0) throw new HttpError(400, "Registration already paid");
       const w = await debitUserWallet(
         req.user!.sub,
         { amountPaise: fee, reason: "ADJUSTMENT", ref: vendor.id, note: "Vendor registration fee" },
@@ -81,16 +93,12 @@ router.post("/pay-registration/wallet", requireAuth, async (req, res, next) => {
       );
       const v = await tx.vendor.update({
         where: { id: vendor.id },
-        data: {
-          registrationPaid: true,
-          registrationPaidAt: new Date(),
-          registrationPaymentRef: w.id,
-          status: "APPROVED",
-        },
+        data: { registrationPaymentRef: w.id },
       });
       await tx.user.update({ where: { id: req.user!.sub }, data: { role: "VENDOR" } });
       return v;
     }).catch((e: unknown) => {
+      if (e instanceof HttpError) throw e;
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "Insufficient wallet balance")
         throw new HttpError(400, `Recharge wallet. Fee: ₹${(fee / 100).toFixed(0)}`);
