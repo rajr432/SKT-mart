@@ -7,6 +7,7 @@ import Testimonials from "@/components/Testimonials";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import FestivalBanner from "@/components/FestivalBanner";
+import CouponCopyStrip from "@/components/CouponCopyStrip";
 import { api, discountPercent } from "@/lib/api";
 import type { Banner, Category, Product } from "@/lib/types";
 
@@ -138,6 +139,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Copy coupon codes */}
+      <CouponCopyStrip />
 
       {/* Top brands marquee */}
       <BrandStrip />

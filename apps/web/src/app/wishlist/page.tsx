@@ -44,7 +44,40 @@ export default function WishlistPage() {
 
   return (
     <div className="container-page py-6">
-      <h1 className="text-xl font-semibold mb-4">My Wishlist ({items.length})</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold">My Wishlist ({items.length})</h1>
+        {items.length > 0 && (
+          <button
+            onClick={async () => {
+              const text = items
+                .slice(0, 20)
+                .map((i) => `• ${i.product.name} — ${formatPaise(i.product.price)} — ${window.location.origin}/product/${i.product.slug}`)
+                .join("\n");
+              const msg = `My SKT Mart wishlist:\n\n${text}`;
+              if (typeof navigator !== "undefined" && "share" in navigator) {
+                try {
+                  await (navigator as Navigator & { share: (d: { title: string; text: string }) => Promise<void> }).share({
+                    title: "My SKT Mart Wishlist",
+                    text: msg,
+                  });
+                  return;
+                } catch {
+                  /* cancelled */
+                }
+              }
+              try {
+                await navigator.clipboard.writeText(msg);
+                alert("Wishlist copied to clipboard!");
+              } catch {
+                alert(msg);
+              }
+            }}
+            className="text-sm bg-brand text-white px-3 py-1.5 rounded-md"
+          >
+            ↗ Share wishlist
+          </button>
+        )}
+      </div>
       {items.length === 0 ? (
         <div className="card p-10 text-center">
           <p>Your wishlist is empty.</p>

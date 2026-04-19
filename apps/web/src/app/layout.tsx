@@ -8,6 +8,7 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import Providers from "@/components/Providers";
 import PushSubscribePrompt from "@/components/PushSubscribePrompt";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import ScrollToTop from "@/components/ScrollToTop";
 
 export const metadata: Metadata = {
   title: {
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ServiceWorkerRegistrar />
           <PushSubscribePrompt />
           <LiveChatWidget />
+          <ScrollToTop />
         </Providers>
       </body>
     </html>

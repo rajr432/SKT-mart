@@ -104,6 +104,23 @@ export default function CartPage() {
                   >
                     Remove
                   </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api("/api/wishlist", {
+                          token,
+                          method: "POST",
+                          json: { productId: ci.product.id },
+                        });
+                        await remove(ci.id);
+                      } catch (e) {
+                        alert((e as Error).message);
+                      }
+                    }}
+                    className="text-sm uppercase font-medium text-brand"
+                  >
+                    Save for later
+                  </button>
                 </div>
               </div>
             </div>
