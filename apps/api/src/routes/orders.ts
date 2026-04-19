@@ -202,10 +202,21 @@ router.post("/", requireAuth, async (req, res, next) => {
       await tx.cartItem.deleteMany({ where: { userId } });
 
       if (body.couponCode) {
-        await tx.coupon.updateMany({
-          where: { code: body.couponCode },
-          data: { usedCount: { increment: 1 } },
-        });
+        // Race-safe usage-limit consumption via raw SQL conditional update.
+        // Prisma's updateMany cannot reference another column in WHERE
+        // (`usedCount < usageLimit`), so we use executeRawUnsafe. Two
+        // concurrent orders with a limited coupon (e.g. usageLimit=1) would
+        // otherwise both pass the pre-tx check in computePrice and both
+        // increment usedCount — bypassing the cap. Here the UPDATE only
+        // succeeds when the coupon is still within limit (or unlimited).
+        const affected = await tx.$executeRawUnsafe<number>(
+          `UPDATE "Coupon" SET "usedCount" = "usedCount" + 1
+           WHERE code = $1 AND ("usageLimit" IS NULL OR "usedCount" < "usageLimit")`,
+          body.couponCode,
+        );
+        if (!affected) {
+          throw new HttpError(400, "Coupon usage limit reached");
+        }
       }
 
       return created;

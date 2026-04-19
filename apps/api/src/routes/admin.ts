@@ -330,7 +330,7 @@ router.get("/analytics", async (req, res, next) => {
     // Daily GMV time series
     const daily = await prisma.$queryRawUnsafe<Array<{ d: Date; total: bigint; orders: bigint }>>(
       `SELECT date_trunc('day', "placedAt") as d, SUM(total)::bigint as total, COUNT(*)::bigint as orders
-       FROM "Order" WHERE "placedAt" >= $1 GROUP BY d ORDER BY d ASC`,
+       FROM "Order" WHERE "placedAt" >= $1 AND "paymentStatus" = 'PAID' GROUP BY d ORDER BY d ASC`,
       since,
     );
 
