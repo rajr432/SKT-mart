@@ -89,11 +89,18 @@ async function chargeAndRecord(
       });
       return "PAUSED";
     }
-    if (msg === "Budget exhausted" || msg === "Campaign not active") {
+    if (msg === "Budget exhausted") {
       await prisma.adCampaign.update({
         where: { id: campaignId },
         data: { status: "COMPLETED" },
       });
+      return "BUDGET_EXHAUSTED";
+    }
+    // "Campaign not active" means the tx-fresh re-read didn't find an
+    // ACTIVE row — that could be because a vendor legitimately PAUSED
+    // it between the outer check and the tx. Do NOT overwrite the
+    // status; just abort this charge so the vendor retains control.
+    if (msg === "Campaign not active") {
       return "BUDGET_EXHAUSTED";
     }
     throw err;

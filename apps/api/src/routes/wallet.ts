@@ -68,11 +68,17 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
       body.razorpaySignature,
     );
     if (!valid) throw new HttpError(400, "Invalid signature");
-    // Idempotency: reject if this payment ID was already used
-    const dup = await prisma.walletTransaction.findFirst({
-      where: { userId: req.user!.sub, ref: body.razorpayPaymentId },
-    });
-    if (dup) return res.json({ transaction: dup });
+    // Global dedupe across ALL wallet contexts + vendor-registration refs.
+    // Scoped-by-userId alone let a user-who-is-also-a-vendor replay the
+    // same (orderId, paymentId, signature) against the user-wallet and
+    // vendor-wallet endpoints to double-credit themselves. Mirror the
+    // pattern used in vendor.ts registration confirm.
+    const [dup, dupVendor] = await Promise.all([
+      prisma.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
+      prisma.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
+    ]);
+    if (dup && dup.userId === req.user!.sub) return res.json({ transaction: dup });
+    if (dup || dupVendor) throw new HttpError(400, "Payment already consumed");
     // Fetch amount from Razorpay to avoid client tampering
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
@@ -171,10 +177,15 @@ router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
       body.razorpaySignature,
     );
     if (!valid) throw new HttpError(400, "Invalid signature");
-    const dup = await prisma.walletTransaction.findFirst({
-      where: { vendorId: v.id, ref: body.razorpayPaymentId },
-    });
-    if (dup) return res.json({ transaction: dup });
+    // Global dedupe — see comment in /recharge/confirm above. Prevents
+    // cross-context replay (user wallet → vendor wallet, or either to
+    // vendor registration fee).
+    const [dup, dupVendorReg] = await Promise.all([
+      prisma.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
+      prisma.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
+    ]);
+    if (dup && dup.vendorId === v.id) return res.json({ transaction: dup });
+    if (dup || dupVendorReg) throw new HttpError(400, "Payment already consumed");
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
