@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: skt-mart-api
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: .
+    buildCommand: npm install --workspaces --include-workspace-root --no-audit --no-fund && cd apps/api && npx prisma generate && npm run build
+    startCommand: cd apps/api && npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: OTP_PROVIDER
+        value: stub
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
