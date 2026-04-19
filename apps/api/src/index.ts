@@ -43,7 +43,10 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({
     origin:
-      process.env.CLIENT_ORIGIN?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
+      (process.env.CORS_ORIGIN ?? process.env.CLIENT_ORIGIN)
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) ?? [
         "https://sktmart.online",
         "https://www.sktmart.online",
         "https://web-ra-ram.vercel.app",
