@@ -44,16 +44,22 @@ router.post("/redeem", requireAuth, async (req, res, next) => {
     const { code } = redeemSchema.parse(req.body);
     const card = await prisma.giftCard.findUnique({ where: { code: code.toUpperCase() } });
     if (!card || !card.active) return res.status(404).json({ error: "Invalid card" });
-    if (card.balancePaise <= 0) return res.status(400).json({ error: "Card already used" });
     if (card.expiresAt < new Date()) return res.status(400).json({ error: "Card expired" });
 
+    // Atomic claim: only succeeds if balance is still positive. The conditional
+    // updateMany acts as a lock against concurrent redemptions of the same card.
     const amount = card.balancePaise;
-    await prisma.$transaction([
-      prisma.giftCard.update({ where: { id: card.id }, data: { balancePaise: 0 } }),
-      prisma.giftCardRedemption.create({
-        data: { giftCardId: card.id, userId: req.user!.sub, amountPaise: amount },
-      }),
-    ]);
+    if (amount <= 0) return res.status(400).json({ error: "Card already used" });
+    const claim = await prisma.giftCard.updateMany({
+      where: { id: card.id, balancePaise: { gt: 0 } },
+      data: { balancePaise: 0 },
+    });
+    if (claim.count === 0) {
+      return res.status(409).json({ error: "Card already redeemed" });
+    }
+    await prisma.giftCardRedemption.create({
+      data: { giftCardId: card.id, userId: req.user!.sub, amountPaise: amount },
+    });
     await creditUserWallet(req.user!.sub, {
       amountPaise: amount,
       reason: "GIFT_CARD",

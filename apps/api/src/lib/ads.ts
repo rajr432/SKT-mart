@@ -1,5 +1,67 @@
 import { prisma } from "./prisma";
-import { debitVendorWallet } from "./wallet";
+
+type AdEventType = "IMPRESSION" | "CLICK" | "CONVERSION";
+
+/**
+ * Charge the vendor's wallet and record spend atomically. Either:
+ *   - wallet is debited, campaign spentPaise increments, AdEvent row is written, or
+ *   - nothing changes and the campaign is paused (insufficient funds).
+ *
+ * Keeping all three writes in one interactive transaction avoids the desync
+ * where spentPaise could advance without a matching wallet debit.
+ */
+async function chargeAndRecord(
+  campaignId: string,
+  type: AdEventType,
+  costPaise: number,
+  userId?: string,
+): Promise<"CHARGED" | "PAUSED"> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.findFirst({
+        where: { campaigns: { some: { id: campaignId } } },
+        select: { id: true, walletBalance: true },
+      });
+      if (!v) throw new Error("Vendor not found");
+      if (v.walletBalance < costPaise) throw new Error("Insufficient vendor wallet");
+
+      const vendor = await tx.vendor.update({
+        where: { id: v.id },
+        data: { walletBalance: { decrement: costPaise } },
+        select: { walletBalance: true },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          vendorId: v.id,
+          type: "DEBIT",
+          reason: "AD_SPEND",
+          amountPaise: costPaise,
+          balanceAfter: vendor.walletBalance,
+          ref: campaignId,
+        },
+      });
+      await tx.adCampaign.update({
+        where: { id: campaignId },
+        data: {
+          spentPaise: { increment: costPaise },
+          ...(type === "IMPRESSION"
+            ? { impressions: { increment: 1 } }
+            : { clicks: { increment: 1 } }),
+        },
+      });
+      await tx.adEvent.create({
+        data: { campaignId, type, costPaise, userId },
+      });
+    });
+    return "CHARGED";
+  } catch {
+    await prisma.adCampaign.update({
+      where: { id: campaignId },
+      data: { status: "PAUSED" },
+    });
+    return "PAUSED";
+  }
+}
 
 export async function recordAdImpression(
   campaignId: string,
@@ -17,29 +79,7 @@ export async function recordAdImpression(
     });
     return null;
   }
-  await prisma.$transaction([
-    prisma.adCampaign.update({
-      where: { id: campaignId },
-      data: { impressions: { increment: 1 }, spentPaise: { increment: cost } },
-    }),
-    prisma.adEvent.create({
-      data: { campaignId, type: "IMPRESSION", costPaise: cost, userId },
-    }),
-  ]);
-  if (cost > 0) {
-    try {
-      await debitVendorWallet(c.vendorId, {
-        amountPaise: cost,
-        reason: "AD_SPEND",
-        ref: campaignId,
-      });
-    } catch {
-      await prisma.adCampaign.update({
-        where: { id: campaignId },
-        data: { status: "PAUSED" },
-      });
-    }
-  }
+  return chargeAndRecord(campaignId, "IMPRESSION", cost, userId);
 }
 
 export async function recordAdClick(
@@ -56,27 +96,7 @@ export async function recordAdClick(
     });
     return null;
   }
-  await prisma.$transaction([
-    prisma.adCampaign.update({
-      where: { id: campaignId },
-      data: { clicks: { increment: 1 }, spentPaise: { increment: cost } },
-    }),
-    prisma.adEvent.create({
-      data: { campaignId, type: "CLICK", costPaise: cost, userId },
-    }),
-  ]);
-  try {
-    await debitVendorWallet(c.vendorId, {
-      amountPaise: cost,
-      reason: "AD_SPEND",
-      ref: campaignId,
-    });
-  } catch {
-    await prisma.adCampaign.update({
-      where: { id: campaignId },
-      data: { status: "PAUSED" },
-    });
-  }
+  return chargeAndRecord(campaignId, "CLICK", cost, userId);
 }
 
 export async function getSponsoredProductIds(

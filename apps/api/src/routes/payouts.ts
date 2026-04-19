@@ -111,14 +111,19 @@ router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res
       where: { id: p.id },
       data: { status: "PAID", utr, notes, paidAt: new Date() },
     });
-    // Credit vendor wallet (settlement) for tracking
-    await creditVendorWallet(p.vendorId, {
-      amountPaise: p.netAmount,
-      reason: "PAYOUT",
-      ref: p.id,
-      note: `Settlement ${p.id} via UTR ${utr}`,
-    });
-    await audit(req.user!.sub, "PAYOUT_PAID", "Payout", p.id, { utr });
+    // Credit vendor wallet only when the settlement is actually positive.
+    // A non-positive net means deductions (refunds + commission + ad spend)
+    // exceeded gross sales; we record the payout but skip the wallet credit
+    // to avoid a CREDIT row with a negative amount.
+    if (p.netAmount > 0) {
+      await creditVendorWallet(p.vendorId, {
+        amountPaise: p.netAmount,
+        reason: "PAYOUT",
+        ref: p.id,
+        note: `Settlement ${p.id} via UTR ${utr}`,
+      });
+    }
+    await audit(req.user!.sub, "PAYOUT_PAID", "Payout", p.id, { utr, netAmount: p.netAmount });
     res.json({ payout: updated });
   } catch (e) {
     next(e);
