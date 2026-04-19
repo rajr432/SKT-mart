@@ -46,6 +46,30 @@ export default function ProductActions({
     }
   };
 
+  const share = async () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const data = {
+      title: document.title,
+      text: "Check out this product on SKT Mart",
+      url,
+    };
+    // Prefer native share sheet on mobile; fall back to clipboard.
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await (navigator as Navigator & { share: (d: typeof data) => Promise<void> }).share(data);
+        return;
+      } catch {
+        /* user cancelled */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("Product link copied!");
+    } catch {
+      alert(url);
+    }
+  };
+
   return (
     <div className="grid grid-cols-2 gap-2">
       <button
@@ -62,8 +86,11 @@ export default function ProductActions({
       >
         {loading === "buy" ? "…" : "Buy Now"}
       </button>
-      <button onClick={wishlist} className="btn-outline col-span-2">
+      <button onClick={wishlist} className="btn-outline">
         ♡ Wishlist
+      </button>
+      <button onClick={share} className="btn-outline">
+        ↗ Share
       </button>
     </div>
   );

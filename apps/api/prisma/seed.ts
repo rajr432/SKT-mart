@@ -19,14 +19,14 @@ async function main() {
   // Global app settings
   await prisma.appSettings.create({ data: { id: "default" } });
 
-  const adminPass = await bcrypt.hash("admin@123", 10);
+  const adminPass = await bcrypt.hash("sktmart10010@A", 10);
   const vendorPass = await bcrypt.hash("vendor@123", 10);
   const customerPass = await bcrypt.hash("customer@123", 10);
 
   const admin = await prisma.user.create({
     data: {
       name: "SKT Admin",
-      email: "admin@sktmart.com",
+      email: "sktmart25@gmail.com",
       password: adminPass,
       role: "ADMIN",
       emailVerified: true,
@@ -363,9 +363,9 @@ async function main() {
   });
 
   console.log("✓ Seed complete");
-  console.log(`  admin:    admin@sktmart.com / admin@123      (${admin.id})`);
-  console.log(`  vendor:   vendor@sktmart.com / vendor@123    (${vendorUser.id})`);
-  console.log(`  customer: customer@sktmart.com / customer@123 (${customerUser.id})`);
+  console.log(`  admin:    sktmart25@gmail.com / sktmart10010@A (${admin.id})`);
+  console.log(`  vendor:   vendor@sktmart.com  / vendor@123     (${vendorUser.id})`);
+  console.log(`  customer: customer@sktmart.com / customer@123  (${customerUser.id})`);
 }
 
 main()
