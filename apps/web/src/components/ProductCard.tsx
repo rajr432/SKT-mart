@@ -5,16 +5,22 @@ import { discountPercent, formatPaise } from "@/lib/api";
 export default function ProductCard({ product }: { product: Product }) {
   const img = product.images?.[0]?.url ?? "https://picsum.photos/seed/sktfallback/600/600";
   const off = discountPercent(product.mrp, product.price);
+  const showCommission = product.price >= 49900;
   return (
     <Link
       href={`/product/${product.slug}`}
-      className="card p-3 flex flex-col hover:shadow-md transition"
+      className="card p-3 flex flex-col card3d relative group"
     >
-      <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+      {off > 0 && (
+        <span className="absolute top-2 left-2 z-10 bg-brand-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded pop-in">
+          {off}% OFF
+        </span>
+      )}
+      <div className="aspect-square bg-gradient-to-br from-gray-50 to-white flex items-center justify-center overflow-hidden rounded">
         <img
           src={img}
           alt={product.name}
-          className="object-contain h-full w-full"
+          className="object-contain h-full w-full card3d-inner transition-transform duration-300 group-hover:scale-110"
           loading="lazy"
         />
       </div>
@@ -32,6 +38,11 @@ export default function ProductCard({ product }: { product: Product }) {
             </>
           )}
         </div>
+        {showCommission && (
+          <p className="text-[10px] text-blue-700 mt-0.5">
+            Platform 10% auto-deducted
+          </p>
+        )}
         <div className="flex items-center gap-2 mt-1">
           {product.rating > 0 && (
             <span className="bg-brand-green text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">

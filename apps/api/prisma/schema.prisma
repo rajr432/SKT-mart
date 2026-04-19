@@ -201,6 +201,9 @@ model Vendor {
   bankAccount String?
   ifsc        String?
   status      VendorStatus @default(PENDING)
+  registrationPaid Boolean @default(false) // one-time ₹199 lifetime fee
+  registrationPaidAt DateTime?
+  registrationPaymentRef String? // razorpay payment id or wallet txn ref
   rating      Float        @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -588,8 +591,10 @@ model AppSettings {
   id                     String   @id @default("default")
   // Commission
   commissionPercent      Float    @default(10)
-  commissionThreshold    Int      @default(50000) // paise (₹500)
+  commissionThreshold    Int      @default(49900) // paise (₹499)
   commissionPercentBelow Float    @default(5) // for items below threshold
+  // Vendor onboarding
+  vendorRegistrationFee  Int      @default(19900) // one-time lifetime fee (paise, ₹199)
   // Order
   freeShippingMin        Int      @default(50000) // paise
   shippingFee            Int      @default(4000) // paise

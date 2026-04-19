@@ -3,16 +3,34 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
+import { getSettings } from "../lib/settings";
+import { debitUserWallet } from "../lib/wallet";
+import { getRazorpay, verifyRazorpaySignature } from "../lib/razorpay";
 
 const router = Router();
 
-router.use(requireAuth, requireRole("VENDOR", "ADMIN"));
+// Public-authenticated endpoint (any logged-in user can register as vendor).
+// The rest of the vendor routes below require VENDOR/ADMIN role + paid reg.
+router.get("/public/fee", async (_req, res, next) => {
+  try {
+    const s = await getSettings();
+    res.json({ feePaise: s.vendorRegistrationFee });
+  } catch (e) {
+    next(e);
+  }
+});
 
-router.get("/me", async (req, res, next) => {
+// Allows any logged-in user (customer or pending vendor) to check their
+// vendor profile + payment status without needing VENDOR role.
+router.get("/status", requireAuth, async (req, res, next) => {
   try {
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
-    if (!vendor) throw new HttpError(404, "Vendor profile not found");
-    res.json({ vendor });
+    const s = await getSettings();
+    res.json({
+      vendor,
+      feePaise: s.vendorRegistrationFee,
+      registrationPaid: vendor?.registrationPaid ?? false,
+    });
   } catch (e) {
     next(e);
   }
@@ -29,7 +47,135 @@ const vendorSchema = z.object({
   ifsc: z.string().optional(),
 });
 
-router.post("/", async (req, res, next) => {
+// Step 1: any logged-in user creates a PENDING vendor profile (unpaid).
+router.post("/apply", requireAuth, async (req, res, next) => {
+  try {
+    const data = vendorSchema.parse(req.body);
+    const existing = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (existing) throw new HttpError(409, "Vendor profile already exists");
+    const vendor = await prisma.vendor.create({
+      data: { ...data, userId: req.user!.sub, status: "PENDING", registrationPaid: false },
+    });
+    res.status(201).json({ vendor });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Step 2a: pay the one-time ₹199 lifetime fee via SKT wallet (instant).
+router.post("/pay-registration/wallet", requireAuth, async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Apply as vendor first");
+    if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
+    const s = await getSettings();
+    const fee = s.vendorRegistrationFee;
+    const updated = await prisma.$transaction(async (tx) => {
+      const w = await debitUserWallet(
+        req.user!.sub,
+        { amountPaise: fee, reason: "ADJUSTMENT", ref: vendor.id, note: "Vendor registration fee" },
+        tx,
+      );
+      const v = await tx.vendor.update({
+        where: { id: vendor.id },
+        data: {
+          registrationPaid: true,
+          registrationPaidAt: new Date(),
+          registrationPaymentRef: w.id,
+          status: "APPROVED",
+        },
+      });
+      await tx.user.update({ where: { id: req.user!.sub }, data: { role: "VENDOR" } });
+      return v;
+    }).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "Insufficient wallet balance")
+        throw new HttpError(400, `Recharge wallet. Fee: ₹${(fee / 100).toFixed(0)}`);
+      throw e;
+    });
+    res.json({ vendor: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Step 2b: pay via Razorpay — create order (client completes checkout)
+router.post("/pay-registration/razorpay/create", requireAuth, async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Apply as vendor first");
+    if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
+    const s = await getSettings();
+    const rz = getRazorpay();
+    const order = rz
+      ? await rz.orders.create({
+          amount: s.vendorRegistrationFee,
+          currency: "INR",
+          receipt: `vreg_${vendor.id}`,
+          notes: { vendorId: vendor.id, kind: "VENDOR_REGISTRATION" },
+        })
+      : null;
+    res.json({
+      razorpayOrderId: order?.id ?? null,
+      amount: s.vendorRegistrationFee,
+      keyId: process.env.RAZORPAY_KEY_ID ?? null,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Step 2c: confirm Razorpay payment & activate vendor
+router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, next) => {
+  try {
+    const schema = z.object({
+      razorpayOrderId: z.string(),
+      razorpayPaymentId: z.string(),
+      razorpaySignature: z.string(),
+    });
+    const body = schema.parse(req.body);
+    const valid = verifyRazorpaySignature(
+      body.razorpayOrderId,
+      body.razorpayPaymentId,
+      body.razorpaySignature,
+    );
+    if (!valid) throw new HttpError(400, "Invalid signature");
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Apply as vendor first");
+    const updated = await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.update({
+        where: { id: vendor.id },
+        data: {
+          registrationPaid: true,
+          registrationPaidAt: new Date(),
+          registrationPaymentRef: body.razorpayPaymentId,
+          status: "APPROVED",
+        },
+      });
+      await tx.user.update({ where: { id: req.user!.sub }, data: { role: "VENDOR" } });
+      return v;
+    });
+    res.json({ vendor: updated });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ==== All following routes require VENDOR/ADMIN role AND paid registration ====
+router.use(requireAuth, requireRole("VENDOR", "ADMIN"));
+
+router.get("/me", async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Vendor profile not found");
+    res.json({ vendor });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Back-compat alias for legacy clients
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const data = vendorSchema.parse(req.body);
     const existing = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });

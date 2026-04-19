@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import ProductActions from "./ProductActions";
 import PincodeCheck from "./PincodeCheck";
 import EmiCalculator from "./EmiCalculator";
+import ReviewForm from "./ReviewForm";
 import ProductCard from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,15 @@ export default async function ProductPage({ params }: { params: { slug: string }
               </>
             )}
           </div>
+          {product.price >= 49900 && (
+            <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded px-2 py-1 inline-flex items-center gap-1">
+              <span>ℹ️</span>
+              <span>
+                Platform commission <b>{formatPaise(Math.floor(product.price * 0.1))}</b> (10%)
+                auto-deducted from seller — buyer pays listed price only.
+              </span>
+            </div>
+          )}
           {product.stock <= 0 && (
             <p className="text-red-600 font-medium text-sm">Out of stock</p>
           )}
@@ -124,6 +134,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
         </div>
       </div>
 
+      <ReviewForm productId={product.id} />
+
       {product.reviews && product.reviews.length > 0 && (
         <div className="card p-4">
           <h2 className="text-lg font-semibold mb-3">Ratings &amp; Reviews</h2>
@@ -142,6 +154,19 @@ export default async function ProductPage({ params }: { params: { slug: string }
                   )}
                 </div>
                 <p className="text-sm text-gray-700 mt-1">{r.comment}</p>
+                {r.images && r.images.length > 0 && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {r.images.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={url}
+                        src={url}
+                        alt=""
+                        className="h-16 w-16 object-cover border rounded"
+                      />
+                    ))}
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 mt-1">
                   {r.user?.name ?? "Anonymous"} · {new Date(r.createdAt).toLocaleDateString()}
                 </p>

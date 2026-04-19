@@ -18,6 +18,10 @@ router.get("/public", async (_req, res, next) => {
       freeShippingMin: s.freeShippingMin,
       shippingFee: s.shippingFee,
       taxPercent: s.taxPercent,
+      commissionPercent: s.commissionPercent,
+      commissionThreshold: s.commissionThreshold,
+      commissionPercentBelow: s.commissionPercentBelow,
+      vendorRegistrationFee: s.vendorRegistrationFee,
       loyaltyValuePaise: s.loyaltyValuePaise,
       features: s.features,
     });
@@ -38,6 +42,7 @@ const updateSchema = z.object({
   commissionPercent: z.number().min(0).max(100).optional(),
   commissionThreshold: z.number().min(0).optional(),
   commissionPercentBelow: z.number().min(0).max(100).optional(),
+  vendorRegistrationFee: z.number().min(0).optional(),
   freeShippingMin: z.number().min(0).optional(),
   shippingFee: z.number().min(0).optional(),
   taxPercent: z.number().min(0).max(100).optional(),

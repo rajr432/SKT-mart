@@ -7,10 +7,14 @@ import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
 
 export default function Header() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [q, setQ] = useState("");
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; name: string; slug: string }>>([]);
+  const [suggestions, setSuggestions] = useState<
+    Array<{ id: string; name: string; slug: string }>
+  >([]);
   const [open, setOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
   const router = useRouter();
   const timer = useRef<NodeJS.Timeout | null>(null);
 
@@ -35,6 +39,23 @@ export default function Header() {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [q]);
+
+  useEffect(() => {
+    if (!token) {
+      setNotifCount(0);
+      setCartCount(0);
+      return;
+    }
+    Promise.all([
+      api<{ items: Array<{ read: boolean }> }>("/api/notifications", { token }).catch(() => ({
+        items: [],
+      })),
+      api<{ items: Array<unknown> }>("/api/cart", { token }).catch(() => ({ items: [] })),
+    ]).then(([n, c]) => {
+      setNotifCount(n.items.filter((i) => !i.read).length);
+      setCartCount(c.items.length);
+    });
+  }, [token]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,61 +109,195 @@ export default function Header() {
           )}
         </form>
 
-        <nav className="hidden sm:flex items-center gap-5 text-sm font-medium">
+        <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
           {user ? (
             <div className="relative group">
-              <button className="flex items-center gap-1">
-                {user.name.split(" ")[0]} <span>▾</span>
+              <button className="flex items-center gap-1.5">
+                <span className="bg-brand-yellow text-brand rounded-full w-7 h-7 grid place-items-center font-bold text-xs">
+                  {user.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="max-w-[90px] truncate">{user.name.split(" ")[0]}</span>
+                <span>▾</span>
               </button>
-              <div className="absolute right-0 top-full mt-1 bg-white text-gray-900 shadow-lg rounded-sm min-w-[180px] hidden group-hover:block">
-                <Link href="/account" className="block px-4 py-2 hover:bg-gray-100">
-                  My Account
-                </Link>
-                <Link href="/orders" className="block px-4 py-2 hover:bg-gray-100">
-                  Orders
-                </Link>
-                <Link href="/wishlist" className="block px-4 py-2 hover:bg-gray-100">
-                  Wishlist
-                </Link>
-                {user.role === "VENDOR" && (
-                  <Link href="/vendor" className="block px-4 py-2 hover:bg-gray-100">
-                    Vendor Dashboard
+              <div className="absolute right-0 top-full pt-1 hidden group-hover:block">
+                <div className="bg-white text-gray-900 shadow-lg rounded-sm min-w-[220px] overflow-hidden">
+                  <div className="px-4 py-2 text-xs text-gray-500 border-b bg-gray-50">
+                    Signed in as <span className="font-semibold text-gray-900">{user.name}</span>
+                  </div>
+                  <Link href="/account" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    👤 My Account
                   </Link>
-                )}
-                {user.role === "ADMIN" && (
-                  <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100">
-                    Admin
+                  <Link href="/orders" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    📦 My Orders
                   </Link>
-                )}
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push("/");
-                  }}
-                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                >
-                  Logout
-                </button>
+                  <Link href="/wishlist" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    ♥ Wishlist
+                  </Link>
+                  <Link
+                    href="/account/wallet"
+                    className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                  >
+                    💰 SKT Wallet
+                  </Link>
+                  <Link
+                    href="/account/loyalty"
+                    className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                  >
+                    🪙 SKT Coins
+                  </Link>
+                  <Link
+                    href="/account/gift-cards"
+                    className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                  >
+                    🎁 Gift Cards
+                  </Link>
+                  <Link
+                    href="/account/referrals"
+                    className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                  >
+                    🤝 Refer &amp; Earn
+                  </Link>
+                  <Link
+                    href="/notifications"
+                    className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                  >
+                    🔔 Notifications {notifCount > 0 && `(${notifCount})`}
+                  </Link>
+                  <Link href="/returns" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    ↩ Returns
+                  </Link>
+                  <div className="border-t my-1" />
+                  {user.role === "VENDOR" && (
+                    <Link href="/vendor" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                      🏪 Vendor Dashboard
+                    </Link>
+                  )}
+                  {user.role === "ADMIN" && (
+                    <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                      🛡 Admin Panel
+                    </Link>
+                  )}
+                  {user.role === "CUSTOMER" && (
+                    <Link
+                      href="/vendor/onboarding"
+                      className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                    >
+                      💼 Become a Seller
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      logout();
+                      router.push("/");
+                    }}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                  >
+                    ⎋ Logout
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            <Link href="/login" className="bg-white text-brand px-6 py-1 font-semibold rounded-sm">
+            <Link
+              href="/login"
+              className="bg-white text-brand px-6 py-1 font-semibold rounded-sm"
+            >
               Login
             </Link>
           )}
-          <Link href="/deals" className="hover:underline hidden md:inline">
+
+          <Link href="/notifications" className="relative" aria-label="notifications">
+            🔔
+            {notifCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 grid place-items-center">
+                {notifCount > 9 ? "9+" : notifCount}
+              </span>
+            )}
+          </Link>
+
+          <Link href="/wishlist" aria-label="wishlist" className="hover:text-brand-yellow">
+            ♥
+          </Link>
+
+          <Link href="/deals" className="hover:underline hidden lg:inline">
             🔥 Deals
           </Link>
-          <Link href="/brands" className="hover:underline hidden md:inline">
+          <Link href="/brands" className="hover:underline hidden lg:inline">
             Brands
           </Link>
-          <Link href="/vendor/onboarding" className="hover:underline">
-            Become a Seller
+          <Link href="/vendor/onboarding" className="hover:underline hidden lg:inline">
+            Become Seller
           </Link>
-          <Link href="/cart" className="flex items-center gap-1">
-            🛒 Cart
+
+          <Link href="/cart" className="relative flex items-center gap-1">
+            🛒 <span className="hidden sm:inline">Cart</span>
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-brand-yellow text-brand text-[10px] rounded-full w-4 h-4 grid place-items-center font-bold">
+                {cartCount}
+              </span>
+            )}
           </Link>
         </nav>
+
+        {/* Mobile-only compact icons */}
+        <nav className="flex md:hidden items-center gap-3 text-lg">
+          <Link href={user ? "/account" : "/login"} aria-label="account">
+            👤
+          </Link>
+          <Link href="/wishlist" aria-label="wishlist">
+            ♥
+          </Link>
+          <Link href="/cart" className="relative" aria-label="cart">
+            🛒
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-brand-yellow text-brand text-[10px] rounded-full w-4 h-4 grid place-items-center font-bold">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+        </nav>
+      </div>
+
+      {/* Secondary nav strip — category shortcuts */}
+      <div className="bg-white text-gray-700 border-b border-gray-200 hidden md:block">
+        <div className="container-page flex items-center gap-6 py-1.5 text-xs overflow-x-auto no-scrollbar">
+          <Link href="/category/electronics" className="hover:text-brand whitespace-nowrap">
+            Electronics
+          </Link>
+          <Link href="/category/fashion" className="hover:text-brand whitespace-nowrap">
+            Fashion
+          </Link>
+          <Link href="/category/home-kitchen" className="hover:text-brand whitespace-nowrap">
+            Home &amp; Kitchen
+          </Link>
+          <Link href="/category/beauty" className="hover:text-brand whitespace-nowrap">
+            Beauty
+          </Link>
+          <Link href="/category/grocery" className="hover:text-brand whitespace-nowrap">
+            Grocery
+          </Link>
+          <Link href="/category/mobiles" className="hover:text-brand whitespace-nowrap">
+            Mobiles
+          </Link>
+          <Link href="/deals" className="hover:text-brand whitespace-nowrap text-red-600 font-semibold">
+            🔥 Today&apos;s Deals
+          </Link>
+          <Link href="/brands" className="hover:text-brand whitespace-nowrap">
+            Top Brands
+          </Link>
+          <Link href="/gift-cards" className="hover:text-brand whitespace-nowrap">
+            🎁 Gift Cards
+          </Link>
+          <Link href="/account/coins" className="hover:text-brand whitespace-nowrap">
+            🪙 SKT Coins
+          </Link>
+          <Link href="/track" className="hover:text-brand whitespace-nowrap">
+            📦 Track Order
+          </Link>
+          <Link href="/contact" className="hover:text-brand whitespace-nowrap">
+            Help
+          </Link>
+        </div>
       </div>
     </header>
   );

@@ -131,6 +131,76 @@ body {
   animation: marquee 28s linear infinite;
 }
 
+/* ============ More 3D product/category animations ============ */
+@keyframes flip-in {
+  0% {
+    opacity: 0;
+    transform: perspective(1000px) rotateY(90deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1000px) rotateY(0deg);
+  }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.8) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes rotate-3d-slow {
+  from { transform: perspective(800px) rotate3d(1, 1, 0, 0deg); }
+  to { transform: perspective(800px) rotate3d(1, 1, 0, 360deg); }
+}
+
+.card3d {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.4s ease;
+}
+.card3d:hover {
+  transform: translateY(-6px) rotateX(4deg) rotateY(-6deg) scale(1.02);
+  box-shadow: 0 24px 50px -18px rgba(40, 116, 240, 0.5);
+}
+.card3d-inner {
+  transform: translateZ(20px);
+}
+.flip-in {
+  animation: flip-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.float-y {
+  animation: float-y 3s ease-in-out infinite;
+}
+.pop-in {
+  animation: pop-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rotate3d-slow {
+  animation: rotate-3d-slow 14s linear infinite;
+  transform-style: preserve-3d;
+}
+.cat-tilt {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cat-tilt:hover {
+  transform: perspective(600px) rotateY(-12deg) scale(1.06);
+}
+.btn-3d {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+}
+.btn-3d:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(40, 116, 240, 0.4);
+}
+.btn-3d:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
 /* Scrollbar polish */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
