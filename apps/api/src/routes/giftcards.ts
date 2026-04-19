@@ -46,26 +46,36 @@ router.post("/redeem", requireAuth, async (req, res, next) => {
     if (!card || !card.active) return res.status(404).json({ error: "Invalid card" });
     if (card.expiresAt < new Date()) return res.status(400).json({ error: "Card expired" });
 
-    // Atomic claim: only succeeds if balance is still positive. The conditional
-    // updateMany acts as a lock against concurrent redemptions of the same card.
     const amount = card.balancePaise;
     if (amount <= 0) return res.status(400).json({ error: "Card already used" });
-    const claim = await prisma.giftCard.updateMany({
-      where: { id: card.id, balancePaise: { gt: 0 } },
-      data: { balancePaise: 0 },
-    });
-    if (claim.count === 0) {
-      return res.status(409).json({ error: "Card already redeemed" });
+
+    // All three writes — zero the card, record the redemption, credit the
+    // wallet — must happen atomically. The conditional updateMany inside the
+    // transaction still serves as a race-condition guard: only the winner of
+    // a concurrent redeem flips balancePaise from >0 to 0; the loser sees
+    // claim.count === 0 and we abort with a 409 before any side-effects.
+    try {
+      await prisma.$transaction(async (tx) => {
+        const claim = await tx.giftCard.updateMany({
+          where: { id: card.id, balancePaise: { gt: 0 } },
+          data: { balancePaise: 0 },
+        });
+        if (claim.count === 0) throw new Error("ALREADY_REDEEMED");
+        await tx.giftCardRedemption.create({
+          data: { giftCardId: card.id, userId: req.user!.sub, amountPaise: amount },
+        });
+        await creditUserWallet(
+          req.user!.sub,
+          { amountPaise: amount, reason: "GIFT_CARD", ref: card.id, note: `Gift card ${card.code}` },
+          tx,
+        );
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message === "ALREADY_REDEEMED") {
+        return res.status(409).json({ error: "Card already redeemed" });
+      }
+      throw err;
     }
-    await prisma.giftCardRedemption.create({
-      data: { giftCardId: card.id, userId: req.user!.sub, amountPaise: amount },
-    });
-    await creditUserWallet(req.user!.sub, {
-      amountPaise: amount,
-      reason: "GIFT_CARD",
-      ref: card.id,
-      note: `Gift card ${card.code}`,
-    });
     res.json({ creditedPaise: amount });
   } catch (e) {
     next(e);

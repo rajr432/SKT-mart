@@ -94,17 +94,36 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
     const { status } = transitionSchema.parse(req.body);
     const r = await prisma.return.findUnique({ where: { id: req.params.id }, include: { items: true } });
     if (!r) return res.status(404).json({ error: "Not found" });
-    const updated = await prisma.return.update({ where: { id: r.id }, data: { status } });
-    if (status === "REFUNDED") {
-      if (r.refundMode === "WALLET" || r.refundMode === "SOURCE") {
-        await creditUserWallet(r.userId, {
-          amountPaise: r.refundPaise,
-          reason: "REFUND",
-          ref: r.id,
-          note: r.refundMode === "SOURCE" ? "Refund processed (5-7 days to source)" : "Wallet refund",
-        });
+
+    // Atomic: flip the Return row to REFUNDED and credit the user's wallet in
+    // the same transaction. If the wallet credit throws we roll back the status
+    // change and surface a 500 so the admin can retry. Previously these were
+    // two independent writes, so a transient failure after the status update
+    // would leave a "REFUNDED" return with no corresponding wallet credit.
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.return.update({ where: { id: r.id }, data: { status } });
+      if (status === "REFUNDED" && (r.refundMode === "WALLET" || r.refundMode === "SOURCE")) {
+        await creditUserWallet(
+          r.userId,
+          {
+            amountPaise: r.refundPaise,
+            reason: "REFUND",
+            ref: r.id,
+            note: r.refundMode === "SOURCE" ? "Refund processed (5-7 days to source)" : "Wallet refund",
+          },
+          tx,
+        );
       }
-      await notify(r.userId, "RETURN", `Refund issued: ${r.rmaNumber}`, `\u20B9${(r.refundPaise / 100).toFixed(0)} refunded.`, `/orders/${r.orderId}`);
+      return row;
+    });
+
+    if (status === "REFUNDED") {
+      // Notification is best-effort; failure must not undo the refund.
+      try {
+        await notify(r.userId, "RETURN", `Refund issued: ${r.rmaNumber}`, `\u20B9${(r.refundPaise / 100).toFixed(0)} refunded.`, `/orders/${r.orderId}`);
+      } catch (notifyErr) {
+        console.error(`[returns] notify failed for return ${r.id}`, notifyErr);
+      }
     }
     res.json({ return: updated });
   } catch (e) {

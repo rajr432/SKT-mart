@@ -132,57 +132,66 @@ router.post("/", requireAuth, async (req, res, next) => {
       return created;
     });
 
-    // Award loyalty points (1 coin per ₹100 spent). breakup.total is in paise,
-    // so ₹100 = 10000 paise. settings.loyaltyEarnPer100 is coins earned per ₹100.
-    const settings = await getSettings();
-    const points = Math.floor(breakup.total / 10000) * settings.loyaltyEarnPer100;
-    if (points > 0) {
-      const updated = await prisma.user.update({
-        where: { id: userId },
-        data: { loyaltyPoints: { increment: points } },
-        select: { loyaltyPoints: true },
-      });
-      await prisma.loyaltyTransaction.create({
-        data: {
-          userId,
-          points,
-          reason: "ORDER_EARN",
-          ref: order.id,
-          balanceAfter: updated.loyaltyPoints,
-        },
-      });
-    }
-
-    // Referral bonus on first order
-    const userOrderCount = await prisma.order.count({ where: { userId } });
-    if (userOrderCount === 1) {
-      const u = await prisma.user.findUnique({ where: { id: userId } });
-      if (u?.referredById) {
-        await creditUserWallet(u.referredById, {
-          amountPaise: settings.referralBonusPaise,
-          reason: "REFERRAL",
-          ref: order.id,
-          note: `Referral bonus from ${u.name}`,
-        });
-        await notify(
-          u.referredById,
-          "WALLET",
-          "Referral bonus credited!",
-          `\u20B9${(settings.referralBonusPaise / 100).toFixed(0)} added to your wallet.`,
-          "/account",
-        );
-      }
-    }
-
-    await notify(
-      userId,
-      "ORDER",
-      `Order placed: ${order.orderNumber}`,
-      `Your order has been placed successfully.`,
-      `/orders/${order.id}`,
-    );
-
+    // Respond immediately: the order is already committed. Any failure in the
+    // post-commit side-effects below (loyalty, referral, notify) must NOT turn
+    // a committed order into a 500, because the client would retry and place a
+    // duplicate order.
     res.status(201).json({ order });
+
+    // Post-commit side-effects. Errors are logged but never re-thrown.
+    try {
+      const settings = await getSettings();
+      // Award loyalty points (1 coin per ₹100 spent). breakup.total is in paise,
+      // so ₹100 = 10000 paise. settings.loyaltyEarnPer100 is coins earned per ₹100.
+      const points = Math.floor(breakup.total / 10000) * settings.loyaltyEarnPer100;
+      if (points > 0) {
+        const updated = await prisma.user.update({
+          where: { id: userId },
+          data: { loyaltyPoints: { increment: points } },
+          select: { loyaltyPoints: true },
+        });
+        await prisma.loyaltyTransaction.create({
+          data: {
+            userId,
+            points,
+            reason: "ORDER_EARN",
+            ref: order.id,
+            balanceAfter: updated.loyaltyPoints,
+          },
+        });
+      }
+
+      // Referral bonus on first order
+      const userOrderCount = await prisma.order.count({ where: { userId } });
+      if (userOrderCount === 1) {
+        const u = await prisma.user.findUnique({ where: { id: userId } });
+        if (u?.referredById) {
+          await creditUserWallet(u.referredById, {
+            amountPaise: settings.referralBonusPaise,
+            reason: "REFERRAL",
+            ref: order.id,
+            note: `Referral bonus from ${u.name}`,
+          });
+          await notify(
+            u.referredById,
+            "WALLET",
+            "Referral bonus credited!",
+            `\u20B9${(settings.referralBonusPaise / 100).toFixed(0)} added to your wallet.`,
+            "/account",
+          );
+        }
+      }
+
+      await notify(
+        userId,
+        "ORDER",
+        `Order placed: ${order.orderNumber}`,
+        `Your order has been placed successfully.`,
+        `/orders/${order.id}`,
+      );
+    } catch (sideEffectErr) {
+      console.error(`[orders] post-commit side-effects failed for order ${order.id}`, sideEffectErr);
+    }
   } catch (e) {
     next(e);
   }
