@@ -114,10 +114,14 @@ router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res
     // a wallet failure would leave the payout stuck in PAID (the guard above
     // blocks retries) while the vendor never receives the settlement.
     const updated = await prisma.$transaction(async (tx) => {
-      const row = await tx.payout.update({
-        where: { id: p.id },
+      // Race-safe claim: only one concurrent caller can flip a non-PAID
+      // payout to PAID. The loser sees count===0 and aborts before any
+      // wallet credit runs (mirrors the pattern in orders.ts / returns.ts).
+      const claim = await tx.payout.updateMany({
+        where: { id: p.id, status: { not: "PAID" } },
         data: { status: "PAID", utr, notes, paidAt: new Date() },
       });
+      if (claim.count === 0) throw new Error("Payout already paid");
       // Credit only when net is actually positive; a non-positive net means
       // deductions exceeded gross sales, in which case we record the payout
       // but skip the wallet credit (no negative CREDIT rows).
@@ -133,7 +137,15 @@ router.post("/:id/mark-paid", requireAuth, requireRole("ADMIN"), async (req, res
           tx,
         );
       }
-      return row;
+      return tx.payout.findUniqueOrThrow({ where: { id: p.id } });
+    }).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "Payout already paid") {
+        const err = new Error(msg) as Error & { status?: number };
+        err.status = 400;
+        throw err;
+      }
+      throw e;
     });
     await audit(req.user!.sub, "PAYOUT_PAID", "Payout", p.id, { utr, netAmount: p.netAmount });
     res.json({ payout: updated });

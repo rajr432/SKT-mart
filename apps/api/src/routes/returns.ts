@@ -53,7 +53,12 @@ router.post("/", requireAuth, async (req, res, next) => {
     // would over-credit the customer by the coupon portion, e.g. pay ₹900 with
     // a ₹100 coupon on a ₹1000 item → return it → get ₹1000 wallet credit.
     const grossItemTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const refundRatio = grossItemTotal > 0 ? order.total / grossItemTotal : 1;
+    // Strip shipping + tax — those are not per-item costs and shouldn't be
+    // refunded proportionally on a partial return (the remaining items still
+    // carry the same shipping/tax burden). Only prorate item-level discounts
+    // (coupons) which are bundled into `order.total - shipping - tax`.
+    const itemNetTotal = Math.max(0, order.total - order.shippingFee - order.tax);
+    const refundRatio = grossItemTotal > 0 ? itemNetTotal / grossItemTotal : 1;
     let refundPaise = 0;
     const itemsData = body.items.map((reqItem) => {
       const oi = order.items.find((x) => x.id === reqItem.orderItemId);
