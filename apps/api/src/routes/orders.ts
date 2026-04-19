@@ -396,6 +396,24 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
     // cancel could end up with status=CANCELLED, stock restored, and no refund
     // issued, with the cancel-guard above blocking any retry.
     const updated = await prisma.$transaction(async (tx) => {
+      // Reject cancel if ANY OrderItem has already been advanced past
+      // CONFIRMED by a vendor (PACKED/SHIPPED/OUT_FOR_DELIVERY/DELIVERED).
+      // Vendors update item status independently, and the aggregate propagation
+      // to Order.status (see vendor.ts) races with customer cancel requests —
+      // without this item-level check, a cancel could land after a shipment,
+      // restocking + refunding goods already in transit.
+      const advanced = await tx.orderItem.findFirst({
+        where: {
+          orderId: order.id,
+          status: { in: ["PACKED", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"] },
+        },
+        select: { name: true, status: true },
+      });
+      if (advanced)
+        throw new HttpError(
+          400,
+          `Cannot cancel — item "${advanced.name}" is already ${advanced.status.replace(/_/g, " ").toLowerCase()}. Raise a return request after delivery instead.`,
+        );
       // Race-safe status flip: only the first concurrent cancel request wins.
       const claim = await tx.order.updateMany({
         where: { id: order.id, status: { in: ["PLACED", "CONFIRMED"] } },

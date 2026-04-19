@@ -408,9 +408,52 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
     });
     if (!orderItem || orderItem.vendorId !== vendor.id)
       throw new HttpError(404, "Order item not found");
-    const updated = await prisma.orderItem.update({
-      where: { id: orderItem.id },
-      data: { status },
+    // Item update + aggregate Order.status propagation must be atomic.
+    // Order.status is the minimum progression across non-CANCELLED items:
+    // if every item is DELIVERED → Order=DELIVERED; if at least one is still
+    // CONFIRMED → Order=CONFIRMED. This keeps (a) the customer tracker in
+    // sync with vendor fulfilment progress, and (b) the cancel-guard in
+    // orders.ts effective once any item ships (PACKED+ items block cancel).
+    const STATUS_RANK: Record<string, number> = {
+      PLACED: 0,
+      CONFIRMED: 1,
+      PACKED: 2,
+      SHIPPED: 3,
+      OUT_FOR_DELIVERY: 4,
+      DELIVERED: 5,
+    };
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.orderItem.update({
+        where: { id: orderItem.id },
+        data: { status },
+      });
+      const siblings = await tx.orderItem.findMany({
+        where: { orderId: orderItem.order.id, status: { notIn: ["CANCELLED", "RETURNED"] } },
+        select: { status: true },
+      });
+      if (siblings.length > 0) {
+        let minRank = Infinity;
+        let minStatus: string = "PLACED";
+        for (const s of siblings) {
+          const r = STATUS_RANK[s.status];
+          if (r === undefined) continue;
+          if (r < minRank) {
+            minRank = r;
+            minStatus = s.status;
+          }
+        }
+        // Only advance forward — never regress Order.status below its current
+        // value (e.g. a CANCELLED order or already-DELIVERED order must not be
+        // re-opened by this aggregate). Also don't overwrite terminal states.
+        await tx.order.updateMany({
+          where: {
+            id: orderItem.order.id,
+            status: { notIn: ["CANCELLED", "RETURNED"] },
+          },
+          data: { status: minStatus as never },
+        });
+      }
+      return u;
     });
     res.json({ orderItem: updated });
 
