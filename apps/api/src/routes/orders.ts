@@ -233,6 +233,10 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
     if (!order || order.userId !== req.user!.sub) throw new HttpError(404, "Order not found");
     if (!["PLACED", "CONFIRMED"].includes(order.status))
       throw new HttpError(400, "Order cannot be cancelled at this stage");
+    // Cancel + restock + refund must all land together. If any step fails
+    // (e.g. wallet credit throws), the whole tx rolls back — otherwise a paid
+    // cancel could end up with status=CANCELLED, stock restored, and no refund
+    // issued, with the cancel-guard above blocking any retry.
     const updated = await prisma.$transaction(async (tx) => {
       const o = await tx.order.update({
         where: { id: order.id },
@@ -246,23 +250,31 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           data: { stock: { increment: it.quantity } },
         });
       }
+      if (order.paymentStatus === "PAID") {
+        await creditUserWallet(
+          order.userId,
+          {
+            amountPaise: order.total,
+            reason: "REFUND",
+            ref: order.id,
+            note: `Refund for cancelled order ${order.orderNumber}`,
+          },
+          tx,
+        );
+        await tx.order.update({
+          where: { id: order.id },
+          data: { paymentStatus: "REFUNDED" },
+        });
+      }
       return o;
     });
-    // refund to wallet if already paid
-    if (order.paymentStatus === "PAID") {
-      await creditUserWallet(order.userId, {
-        amountPaise: order.total,
-        reason: "REFUND",
-        ref: order.id,
-        note: `Refund for cancelled order ${order.orderNumber}`,
-      });
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { paymentStatus: "REFUNDED" },
-      });
-    }
-    await notify(order.userId, "ORDER", `Order cancelled`, `Order ${order.orderNumber} has been cancelled.`, `/orders/${order.id}`);
     res.json({ order: updated });
+    // Best-effort notification — must not turn a committed cancel into a 500.
+    try {
+      await notify(order.userId, "ORDER", `Order cancelled`, `Order ${order.orderNumber} has been cancelled.`, `/orders/${order.id}`);
+    } catch (notifyErr) {
+      console.error(`[orders] notify failed for cancel ${order.id}`, notifyErr);
+    }
   } catch (e) {
     next(e);
   }
