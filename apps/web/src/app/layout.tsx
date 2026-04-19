@@ -1,7 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BottomNav from "@/components/BottomNav";
+import InstallPrompt from "@/components/InstallPrompt";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import { AuthProvider } from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
@@ -12,6 +15,16 @@ export const metadata: Metadata = {
   description:
     "Shop electronics, fashion, home, books and more from trusted sellers on SKT Mart. Fast delivery, easy returns, secure payments.",
   keywords: ["SKT Mart", "e-commerce", "India", "multi-vendor", "online shopping"],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SKT Mart",
+  },
+  icons: {
+    icon: [{ url: "/logo.jpg" }, { url: "/logo-256.png", sizes: "256x256" }],
+    apple: [{ url: "/logo.jpg" }],
+  },
   openGraph: {
     title: "SKT Mart — Shop Smart, Live Better",
     description:
@@ -27,14 +40,24 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#2874f0",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen flex flex-col">
+      <body className="min-h-screen flex flex-col pb-[64px] md:pb-0">
         <AuthProvider>
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
+          <BottomNav />
+          <InstallPrompt />
+          <ServiceWorkerRegistrar />
         </AuthProvider>
       </body>
     </html>

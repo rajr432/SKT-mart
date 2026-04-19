@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
+import MobileDrawer from "./MobileDrawer";
 
 export default function Header() {
   const { user, token, logout } = useAuth();
@@ -66,7 +67,8 @@ export default function Header() {
 
   return (
     <header className="bg-brand text-white sticky top-0 z-40 shadow">
-      <div className="container-page flex items-center gap-3 py-2.5">
+      <div className="container-page flex items-center gap-2 py-2.5">
+        <MobileDrawer />
         <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="SKT Mart home">
           <span className="bg-white rounded-md p-1 flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -241,11 +243,13 @@ export default function Header() {
 
         {/* Mobile-only compact icons */}
         <nav className="flex md:hidden items-center gap-3 text-lg">
-          <Link href={user ? "/account" : "/login"} aria-label="account">
-            👤
-          </Link>
-          <Link href="/wishlist" aria-label="wishlist">
-            ♥
+          <Link href="/notifications" className="relative" aria-label="notifications">
+            🔔
+            {notifCount > 0 && (
+              <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 grid place-items-center font-bold">
+                {notifCount > 9 ? "9+" : notifCount}
+              </span>
+            )}
           </Link>
           <Link href="/cart" className="relative" aria-label="cart">
             🛒
