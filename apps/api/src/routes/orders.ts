@@ -7,7 +7,7 @@ import { computePrice } from "../lib/pricing";
 import { generateOrderNumber } from "../lib/order";
 import { computeCommission } from "../lib/commission";
 import { notify } from "../lib/notify";
-import { creditUserWallet } from "../lib/wallet";
+import { creditUserWallet, debitUserWallet } from "../lib/wallet";
 import { getSettings } from "../lib/settings";
 
 const router = Router();
@@ -63,7 +63,8 @@ router.post("/", requireAuth, async (req, res, next) => {
       }),
     );
 
-    const order = await prisma.$transaction(async (tx) => {
+    const order = await prisma.$transaction(async (tx): Promise<Awaited<ReturnType<typeof tx.order.create>>> => {
+      const isWallet = body.paymentMethod === "WALLET";
       const created = await tx.order.create({
         data: {
           orderNumber: generateOrderNumber(),
@@ -75,6 +76,7 @@ router.post("/", requireAuth, async (req, res, next) => {
           tax: breakup.tax,
           total: breakup.total,
           paymentMethod: body.paymentMethod,
+          paymentStatus: isWallet ? "PAID" : "PENDING",
           couponCode: body.couponCode,
           notes: body.notes,
           items: {
@@ -92,12 +94,27 @@ router.post("/", requireAuth, async (req, res, next) => {
             create: {
               amount: breakup.total,
               method: body.paymentMethod,
-              status: "PENDING",
+              status: isWallet ? "PAID" : "PENDING",
             },
           },
         },
         include: { items: true, payment: true, address: true },
       });
+
+      // WALLET method: atomically debit user wallet. If insufficient, the
+      // tx rolls back and the order is never created — caller sees 400.
+      if (isWallet) {
+        await debitUserWallet(
+          userId,
+          {
+            amountPaise: breakup.total,
+            reason: "ADJUSTMENT",
+            ref: created.id,
+            note: `Order ${created.orderNumber}`,
+          },
+          tx,
+        );
+      }
 
       // Create commission ledger entries
       for (const it of created.items) {
@@ -130,6 +147,12 @@ router.post("/", requireAuth, async (req, res, next) => {
       }
 
       return created;
+    }).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "Insufficient wallet balance") {
+        throw new HttpError(400, "Insufficient wallet balance for this order");
+      }
+      throw e;
     });
 
     // Respond immediately: the order is already committed. Any failure in the

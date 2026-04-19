@@ -15,6 +15,11 @@ export default function CheckoutPage() {
   const [addressId, setAddressId] = useState<string>("");
   const [method, setMethod] = useState<"RAZORPAY" | "UPI" | "WALLET">("RAZORPAY");
   const [coupon, setCoupon] = useState("");
+  const [settings, setSettings] = useState<{
+    freeShippingMin: number;
+    shippingFee: number;
+    taxPercent: number;
+  } | null>(null);
   const [newAddr, setNewAddr] = useState<Partial<Address> | null>(null);
   const [placing, setPlacing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -26,24 +31,34 @@ export default function CheckoutPage() {
       return;
     }
     (async () => {
-      const [a, c] = await Promise.all([
+      const [a, c, s] = await Promise.all([
         api<{ items: Address[] }>("/api/addresses", { token }),
         api<{ items: CartItem[] }>("/api/cart", { token }),
+        api<{ freeShippingMin: number; shippingFee: number; taxPercent: number }>(
+          "/api/settings/public",
+        ).catch(() => ({ freeShippingMin: 50000, shippingFee: 4000, taxPercent: 18 })),
       ]);
       setAddresses(a.items);
       setItems(c.items);
+      setSettings({
+        freeShippingMin: s.freeShippingMin,
+        shippingFee: s.shippingFee,
+        taxPercent: s.taxPercent,
+      });
       const def = a.items.find((x) => x.isDefault) ?? a.items[0];
       if (def) setAddressId(def.id);
     })();
   }, [ready, token]);
 
   const totals = useMemo(() => {
+    const cfg = settings ?? { freeShippingMin: 50000, shippingFee: 4000, taxPercent: 18 };
     const subtotal = items.reduce((s, i) => s + i.product.mrp * i.quantity, 0);
     const selling = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
     const discount = subtotal - selling;
-    const shipping = selling >= 50000 ? 0 : 4000;
-    return { subtotal, selling, discount, shipping, total: selling + shipping };
-  }, [items]);
+    const shipping = selling >= cfg.freeShippingMin ? 0 : cfg.shippingFee;
+    const tax = Math.round((selling * cfg.taxPercent) / 100);
+    return { subtotal, selling, discount, shipping, tax, total: selling + shipping + tax };
+  }, [items, settings]);
 
   const saveAddress = async () => {
     if (!newAddr) return;
@@ -231,6 +246,10 @@ export default function CheckoutPage() {
           <div className="flex justify-between">
             <span>Delivery</span>
             <span>{totals.shipping === 0 ? "Free" : formatPaise(totals.shipping)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tax ({settings?.taxPercent ?? 18}%)</span>
+            <span>{formatPaise(totals.tax)}</span>
           </div>
           <div className="border-t my-2" />
           <div className="flex justify-between font-semibold">
