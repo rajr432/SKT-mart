@@ -36,7 +36,6 @@ export default function Page() {
       <ul>
         <li>Free delivery on prepaid orders above ₹499.</li>
         <li>Orders below ₹499: flat ₹49 shipping fee.</li>
-        <li>Cash on Delivery: additional ₹40 handling fee may apply.</li>
         <li>Heavy/large appliances: delivery fee shown at checkout.</li>
       </ul>
 
@@ -50,7 +49,7 @@ export default function Page() {
       <p>
         Our logistics partner will make up to 3 delivery attempts. If undelivered after 3
         attempts, the order is returned to the seller and a full refund is processed (minus any
-        applicable shipping/COD charges).
+        applicable shipping charges).
       </p>
 
       <h2>6. ID Verification</h2>

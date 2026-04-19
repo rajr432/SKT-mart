@@ -69,6 +69,39 @@ app.get(["/health", "/api/health"], (_req, res) => {
   res.json({ ok: true, service: "skt-mart-api", time: new Date().toISOString() });
 });
 
+// Root landing — clarifies this host is the API; points browsers to the web app.
+app.get("/", (_req, res) => {
+  const webUrl = process.env.WEB_URL ?? "https://web-ra-ram.vercel.app";
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SKT Mart API</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1220;color:#e6edf3;display:flex;min-height:100vh;align-items:center;justify-content:center}
+    .card{max-width:640px;padding:40px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    h1{margin:0 0 8px;font-size:28px;background:linear-gradient(90deg,#ffd814,#ff9900);-webkit-background-clip:text;background-clip:text;color:transparent}
+    p{margin:8px 0;color:#9aa7b8;line-height:1.55}
+    .btn{display:inline-block;margin-top:18px;padding:12px 22px;background:linear-gradient(90deg,#2874f0,#7b4bff);color:#fff;text-decoration:none;border-radius:10px;font-weight:600}
+    code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;font-size:12px}
+    ul{color:#9aa7b8;font-size:13px;line-height:1.8;padding-left:18px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SKT Mart — Backend API</h1>
+    <p>Ye backend hai. User-facing shopping site kholne ke liye neeche click karo 👇</p>
+    <a class="btn" href="${webUrl}">Open SKT Mart Web App →</a>
+    <p style="margin-top:24px;font-size:13px">Endpoints: <code>/health</code>, <code>/api/products</code>, <code>/api/categories</code>, <code>/api/auth/login</code>, <code>/sitemap.xml</code></p>
+    <ul>
+      <li>Status: <code>${new Date().toISOString()}</code></li>
+      <li>Docs: all routes under <code>/api/*</code></li>
+    </ul>
+  </div>
+</body></html>`);
+});
+
 app.use("/api/auth", authRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/categories", categoriesRouter);
@@ -122,10 +155,17 @@ app.get("/sitemap.xml", async (_req, res, next) => {
       ...cats.map((c) => `${base}/category/${c.slug}`),
       ...products.map((p) => `${base}/product/${p.slug}`),
     ];
+    const escXml = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
     res.set("Content-Type", "application/xml");
     res.send(
       `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
-        .map((u) => `  <url><loc>${u}</loc></url>`)
+        .map((u) => `  <url><loc>${escXml(u)}</loc></url>`)
         .join("\n")}\n</urlset>`,
     );
   } catch (e) {

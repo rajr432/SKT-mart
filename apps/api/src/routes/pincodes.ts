@@ -10,7 +10,6 @@ router.get("/:pincode", async (req, res, next) => {
       res.json({
         pincode: req.params.pincode,
         serviceable: false,
-        codAvailable: false,
         etaDays: null,
       });
       return;

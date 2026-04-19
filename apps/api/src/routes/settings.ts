@@ -17,8 +17,7 @@ router.get("/public", async (_req, res, next) => {
       maintenanceMode: s.maintenanceMode,
       freeShippingMin: s.freeShippingMin,
       shippingFee: s.shippingFee,
-      codCharge: s.codCharge,
-      codMaxOrder: s.codMaxOrder,
+      taxPercent: s.taxPercent,
       loyaltyValuePaise: s.loyaltyValuePaise,
       features: s.features,
     });
@@ -41,8 +40,6 @@ const updateSchema = z.object({
   commissionPercentBelow: z.number().min(0).max(100).optional(),
   freeShippingMin: z.number().min(0).optional(),
   shippingFee: z.number().min(0).optional(),
-  codCharge: z.number().min(0).optional(),
-  codMaxOrder: z.number().min(0).optional(),
   taxPercent: z.number().min(0).max(100).optional(),
   loyaltyEarnPer100: z.number().min(0).optional(),
   loyaltyValuePaise: z.number().min(0).optional(),

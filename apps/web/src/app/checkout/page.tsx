@@ -13,7 +13,7 @@ export default function CheckoutPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [items, setItems] = useState<CartItem[]>([]);
   const [addressId, setAddressId] = useState<string>("");
-  const [method, setMethod] = useState<"COD" | "RAZORPAY">("COD");
+  const [method, setMethod] = useState<"RAZORPAY" | "UPI" | "WALLET">("RAZORPAY");
   const [coupon, setCoupon] = useState("");
   const [newAddr, setNewAddr] = useState<Partial<Address> | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -41,7 +41,7 @@ export default function CheckoutPage() {
     const subtotal = items.reduce((s, i) => s + i.product.mrp * i.quantity, 0);
     const selling = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
     const discount = subtotal - selling;
-    const shipping = selling >= 49900 ? 0 : 4900;
+    const shipping = selling >= 50000 ? 0 : 4000;
     return { subtotal, selling, discount, shipping, total: selling + shipping };
   }, [items]);
 
@@ -82,13 +82,13 @@ export default function CheckoutPage() {
         );
         if (!rzp.keyId) {
           alert(
-            "Razorpay is not configured. Add RAZORPAY_KEY_ID/SECRET in apps/api/.env. Order placed with COD-pending state.",
+            "Razorpay is not configured. Add RAZORPAY_KEY_ID/SECRET in apps/api/.env. Order placed in PENDING state — admin will confirm.",
           );
           router.push(`/orders/${order.id}`);
           return;
         }
         alert(
-          "Razorpay checkout hook created. Integrate Razorpay Checkout JS (require live keys).",
+          "Razorpay checkout hook created. Integrate Razorpay Checkout JS (requires live keys).",
         );
       }
       router.push(`/orders/${order.id}`);
@@ -177,22 +177,43 @@ export default function CheckoutPage() {
 
         <div className="card p-4">
           <h2 className="font-semibold mb-3">Payment Method</h2>
-          <label className="flex gap-2 text-sm border p-3 rounded mb-2 cursor-pointer">
-            <input
-              type="radio"
-              checked={method === "COD"}
-              onChange={() => setMethod("COD")}
-            />
-            Cash on Delivery
-          </label>
-          <label className="flex gap-2 text-sm border p-3 rounded cursor-pointer">
+          <label className="flex items-center gap-3 text-sm border-2 p-3 rounded mb-2 cursor-pointer hover:border-brand">
             <input
               type="radio"
               checked={method === "RAZORPAY"}
               onChange={() => setMethod("RAZORPAY")}
             />
-            Razorpay (UPI, Card, Net Banking) — requires test keys
+            <span className="text-2xl">💳</span>
+            <div>
+              <div className="font-semibold">Razorpay — Card, UPI, Net Banking</div>
+              <div className="text-xs text-gray-500">Secure payment powered by Razorpay</div>
+            </div>
           </label>
+          <label className="flex items-center gap-3 text-sm border-2 p-3 rounded mb-2 cursor-pointer hover:border-brand">
+            <input
+              type="radio"
+              checked={method === "UPI"}
+              onChange={() => setMethod("UPI")}
+            />
+            <span className="text-2xl">📲</span>
+            <div>
+              <div className="font-semibold">UPI (GPay, PhonePe, Paytm)</div>
+              <div className="text-xs text-gray-500">Instant payment via UPI apps</div>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 text-sm border-2 p-3 rounded cursor-pointer hover:border-brand">
+            <input
+              type="radio"
+              checked={method === "WALLET"}
+              onChange={() => setMethod("WALLET")}
+            />
+            <span className="text-2xl">👛</span>
+            <div>
+              <div className="font-semibold">SKT Wallet</div>
+              <div className="text-xs text-gray-500">Pay using your wallet balance</div>
+            </div>
+          </label>
+          <p className="text-xs text-gray-500 mt-3">🔒 100% secure payments · All major methods supported</p>
         </div>
       </div>
 

@@ -205,8 +205,6 @@ export interface AppSettings {
   commissionPercentBelow: number;
   freeShippingMin: number;
   shippingFee: number;
-  codCharge: number;
-  codMaxOrder: number;
   taxPercent: number;
   loyaltyEarnPer100: number;
   loyaltyValuePaise: number;

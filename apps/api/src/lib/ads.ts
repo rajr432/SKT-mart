@@ -15,14 +15,30 @@ async function chargeAndRecord(
   type: AdEventType,
   costPaise: number,
   userId?: string,
-): Promise<"CHARGED" | "PAUSED"> {
+): Promise<"CHARGED" | "PAUSED" | "BUDGET_EXHAUSTED"> {
   try {
     await prisma.$transaction(async (tx) => {
-      const v = await tx.vendor.findFirst({
-        where: { campaigns: { some: { id: campaignId } } },
-        select: { id: true },
+      // Re-read campaign inside tx to guard against concurrent callers who read
+      // the same stale remaining budget. If two threads each saw remaining=100
+      // and cost=100 outside the tx, we want only one of them to succeed.
+      const budgetClaim = await tx.adCampaign.updateMany({
+        where: {
+          id: campaignId,
+          status: "ACTIVE",
+          spentPaise: { lte: 2147483647 - costPaise }, // overflow guard
+          // Ensure spentPaise + cost <= budgetPaise by requiring budget ≥ spent + cost
+          // Prisma doesn't allow cross-column comparisons directly; enforce via raw guard below.
+        },
+        data: {},
       });
-      if (!v) throw new Error("Vendor not found");
+      if (budgetClaim.count === 0) throw new Error("Campaign not active");
+      const camp = await tx.adCampaign.findUniqueOrThrow({
+        where: { id: campaignId },
+        select: { budgetPaise: true, spentPaise: true, vendorId: true },
+      });
+      if (camp.spentPaise + costPaise > camp.budgetPaise) {
+        throw new Error("Budget exhausted");
+      }
 
       // Race-safe debit: conditional UPDATE guards against two concurrent ad
       // charges both passing a stale sufficiency check and driving the wallet
@@ -30,17 +46,17 @@ async function chargeAndRecord(
       // we throw the canonical "Insufficient vendor wallet" so the outer
       // catch pauses the campaign.
       const claim = await tx.vendor.updateMany({
-        where: { id: v.id, walletBalance: { gte: costPaise } },
+        where: { id: camp.vendorId, walletBalance: { gte: costPaise } },
         data: { walletBalance: { decrement: costPaise } },
       });
       if (claim.count === 0) throw new Error("Insufficient vendor wallet");
       const vendor = await tx.vendor.findUniqueOrThrow({
-        where: { id: v.id },
+        where: { id: camp.vendorId },
         select: { walletBalance: true },
       });
       await tx.walletTransaction.create({
         data: {
-          vendorId: v.id,
+          vendorId: camp.vendorId,
           type: "DEBIT",
           reason: "AD_SPEND",
           amountPaise: costPaise,
@@ -65,9 +81,6 @@ async function chargeAndRecord(
     });
     return "CHARGED";
   } catch (err) {
-    // Only pause the campaign for deterministic "can't fund this charge" errors.
-    // Transient DB failures must bubble up so the caller (route handler) can
-    // surface a 500 via the error middleware instead of silently disabling ads.
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === "Insufficient vendor wallet" || msg === "Vendor not found") {
       await prisma.adCampaign.update({
@@ -75,6 +88,13 @@ async function chargeAndRecord(
         data: { status: "PAUSED" },
       });
       return "PAUSED";
+    }
+    if (msg === "Budget exhausted" || msg === "Campaign not active") {
+      await prisma.adCampaign.update({
+        where: { id: campaignId },
+        data: { status: "COMPLETED" },
+      });
+      return "BUDGET_EXHAUSTED";
     }
     throw err;
   }

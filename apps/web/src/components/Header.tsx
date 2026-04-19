@@ -130,6 +130,12 @@ export default function Header() {
               Login
             </Link>
           )}
+          <Link href="/deals" className="hover:underline hidden md:inline">
+            🔥 Deals
+          </Link>
+          <Link href="/brands" className="hover:underline hidden md:inline">
+            Brands
+          </Link>
           <Link href="/vendor/onboarding" className="hover:underline">
             Become a Seller
           </Link>

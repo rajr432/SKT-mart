@@ -98,11 +98,11 @@ enum PaymentStatus {
 }
 
 enum PaymentMethod {
-  COD
   RAZORPAY
   UPI
   CARD
   NETBANKING
+  WALLET
 }
 
 // ========== USERS ==========
@@ -467,7 +467,7 @@ model Order {
   total         Int
   status        OrderStatus   @default(PLACED)
   paymentStatus PaymentStatus @default(PENDING)
-  paymentMethod PaymentMethod @default(COD)
+  paymentMethod PaymentMethod @default(RAZORPAY)
   couponCode    String?
   notes         String?
   placedAt      DateTime      @default(now())
@@ -579,7 +579,6 @@ model Pincode {
   city         String
   state        String
   serviceable  Boolean @default(true)
-  codAvailable Boolean @default(true)
   etaDays      Int     @default(5)
 }
 
@@ -594,8 +593,6 @@ model AppSettings {
   // Order
   freeShippingMin        Int      @default(50000) // paise
   shippingFee            Int      @default(4000) // paise
-  codCharge              Int      @default(4000) // paise
-  codMaxOrder            Int      @default(2000000) // paise (₹20000)
   taxPercent             Float    @default(18)
   // Loyalty
   loyaltyEarnPer100      Int      @default(1) // 1 coin per ₹100

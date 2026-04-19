@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getSettings } from "./settings";
 
 export interface CartLine {
   productId: string;
@@ -21,6 +22,7 @@ export async function computePrice(
   couponCode?: string,
   pincode?: string,
 ): Promise<PriceBreakup> {
+  const settings = await getSettings();
   const subtotal = lines.reduce((s, l) => s + l.mrp * l.quantity, 0);
   const sellingTotal = lines.reduce((s, l) => s + l.price * l.quantity, 0);
   const discount = subtotal - sellingTotal;
@@ -43,11 +45,12 @@ export async function computePrice(
     }
   }
 
-  // Free shipping above 49900 paise (₹499), else ₹4900 paise (₹49).
-  const shippingFee = sellingTotal - couponDiscount >= 49900 ? 0 : 4900;
+  // Admin-configurable: free shipping above freeShippingMin, else shippingFee.
+  const netAfterCoupon = sellingTotal - couponDiscount;
+  const shippingFee = netAfterCoupon >= settings.freeShippingMin ? 0 : settings.shippingFee;
 
-  // 0% tax (prices assumed inclusive). Hook to compute GST if needed.
-  const tax = 0;
+  // Admin-configurable tax. Applied on net-after-coupon (pre-shipping).
+  const tax = Math.round((netAfterCoupon * settings.taxPercent) / 100);
 
   let pincodeAdjust = 0;
   if (pincode) {
@@ -57,7 +60,7 @@ export async function computePrice(
     }
   }
 
-  const total = sellingTotal - couponDiscount + shippingFee + tax + pincodeAdjust;
+  const total = netAfterCoupon + shippingFee + tax + pincodeAdjust;
 
   return { subtotal, discount, couponDiscount, shippingFee, tax, total };
 }

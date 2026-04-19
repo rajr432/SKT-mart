@@ -3,6 +3,7 @@ import type { Product } from "@/lib/types";
 import { notFound } from "next/navigation";
 import ProductActions from "./ProductActions";
 import PincodeCheck from "./PincodeCheck";
+import EmiCalculator from "./EmiCalculator";
 import ProductCard from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
     <div className="container-page py-4 space-y-4">
       <div className="card p-4 grid md:grid-cols-[minmax(0,1fr)_1.5fr] gap-6">
         <div>
-          <div className="aspect-square bg-white border flex items-center justify-center overflow-hidden">
-            {main && <img src={main} alt={product.name} className="max-h-full object-contain" />}
+          <div className="hero-3d">
+            <div className="tilt-card aspect-square bg-white border flex items-center justify-center overflow-hidden rounded-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {main && <img src={main} alt={product.name} className="max-h-full object-contain" />}
+            </div>
           </div>
           <div className="flex gap-2 mt-2 overflow-x-auto">
             {product.images.map((im) => (
@@ -88,6 +92,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
           </div>
 
           <PincodeCheck />
+
+          <EmiCalculator principalPaise={product.price} />
 
           <div>
             <h3 className="font-medium text-gray-700 mt-4">Description</h3>

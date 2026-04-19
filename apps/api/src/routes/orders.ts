@@ -14,7 +14,7 @@ const router = Router();
 
 const placeOrderSchema = z.object({
   addressId: z.string(),
-  paymentMethod: z.enum(["COD", "RAZORPAY", "UPI", "CARD", "NETBANKING"]).default("COD"),
+  paymentMethod: z.enum(["RAZORPAY", "UPI", "CARD", "NETBANKING", "WALLET"]).default("RAZORPAY"),
   couponCode: z.string().optional(),
   notes: z.string().optional(),
 });

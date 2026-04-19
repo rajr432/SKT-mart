@@ -56,7 +56,7 @@ export default function Page() {
       <h2>4. Refund Timelines</h2>
       <ul>
         <li>Prepaid orders: 5–7 business days to your original payment source.</li>
-        <li>Cash on Delivery orders: 5–7 business days to your bank account (NEFT/UPI).</li>
+        <li>SKT Wallet refunds: instant credit, usable on next order.</li>
         <li>SKT Mart Gift Card: Instant to your Gift Card balance.</li>
       </ul>
 

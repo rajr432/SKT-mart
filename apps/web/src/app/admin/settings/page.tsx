@@ -86,8 +86,6 @@ export default function AdminSettingsPage() {
         <div className="grid md:grid-cols-3 gap-3">
           {field("freeShippingMin", "Free shipping minimum (paise)")}
           {field("shippingFee", "Shipping fee (paise)")}
-          {field("codCharge", "COD charge (paise)")}
-          {field("codMaxOrder", "COD max order value (paise)")}
           {field("taxPercent", "Default tax %")}
         </div>
       </section>

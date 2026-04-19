@@ -280,7 +280,6 @@ router.post("/pincodes", async (req, res, next) => {
         city: z.string(),
         state: z.string(),
         serviceable: z.boolean().default(true),
-        codAvailable: z.boolean().default(true),
         etaDays: z.number().int().default(5),
       })
       .parse(req.body);

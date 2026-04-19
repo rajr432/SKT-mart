@@ -23,8 +23,7 @@ export default function Page() {
           <strong>Credit/Debit Card:</strong> 5–7 business days to the card.
         </li>
         <li>
-          <strong>Cash on Delivery:</strong> 5–7 business days via NEFT to the bank account
-          provided.
+          <strong>SKT Wallet:</strong> Instant credit, usable on your next order.
         </li>
         <li>
           <strong>SKT SuperCoins / Gift Card:</strong> Instant credit to your wallet.

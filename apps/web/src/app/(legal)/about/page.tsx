@@ -22,7 +22,7 @@ export default function Page() {
         <li>20M+ products across 1,000+ categories from verified sellers.</li>
         <li>Fast delivery to 20,000+ pincodes, including same-day in metros.</li>
         <li>Transparent ratings, verified-buyer reviews, and F-Assured quality checks.</li>
-        <li>Secure payments: UPI, net banking, cards, wallets, COD, and EMI.</li>
+        <li>Secure payments: UPI, net banking, cards, SKT Wallet, and EMI.</li>
         <li>Hassle-free returns and instant refunds to source.</li>
       </ul>
 
