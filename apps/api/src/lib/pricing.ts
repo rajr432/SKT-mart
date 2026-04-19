@@ -45,8 +45,11 @@ export async function computePrice(
     }
   }
 
-  // Admin-configurable: free shipping above freeShippingMin, else shippingFee.
-  const netAfterCoupon = sellingTotal - couponDiscount;
+  // Clamp to 0 — a FLAT coupon whose `value` exceeds the selling total
+  // must not drive net/tax negative. Otherwise WALLET payments with a
+  // negative `amountPaise` would INCREMENT the user's wallet balance
+  // (gte guard trivially passes, decrement of negative = addition).
+  const netAfterCoupon = Math.max(0, sellingTotal - couponDiscount);
   const shippingFee = netAfterCoupon >= settings.freeShippingMin ? 0 : settings.shippingFee;
 
   // Admin-configurable tax. Applied on net-after-coupon (pre-shipping).

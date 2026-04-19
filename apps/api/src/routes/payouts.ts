@@ -82,12 +82,15 @@ router.post("/generate", requireAuth, requireRole("ADMIN"), async (req, res, nex
       },
     });
 
-    // Link commissions to payout
+    // Link commissions to payout — MUST mirror the aggregation filter above
+    // (status: DELIVERED). Otherwise commissions for SHIPPED/PACKED/PLACED
+    // items in the period would be marked paid but never included in any
+    // payout's totals, permanently orphaning vendor earnings.
     await prisma.commission.updateMany({
       where: {
         vendorId,
         payoutId: null,
-        orderItem: { order: { placedAt: { gte: start, lte: end } } },
+        orderItem: { status: "DELIVERED", order: { placedAt: { gte: start, lte: end } } },
       },
       data: { payoutId: payout.id },
     });
