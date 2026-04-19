@@ -221,7 +221,11 @@ model Vendor {
   status      VendorStatus @default(PENDING)
   registrationPaid Boolean @default(false) // one-time ₹199 lifetime fee
   registrationPaidAt DateTime?
-  registrationPaymentRef String? // razorpay payment id or wallet txn ref
+  // Unique so a Razorpay paymentId cannot be replayed across this column
+  // and WalletTransaction.ref to double-credit or re-activate a suspended
+  // vendor. Postgres treats multiple NULLs as distinct, so nullability is
+  // preserved for vendors who haven't paid yet.
+  registrationPaymentRef String? @unique
   rating      Float        @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -679,6 +683,25 @@ model WalletTransaction {
   @@index([userId])
   @@index([vendorId])
   @@index([reason])
+}
+
+// Global idempotency ledger for external payment gateway references
+// (Razorpay paymentId, webhook event id, etc.). A single unique row per
+// paymentRef is claimed inside the same interactive transaction that
+// credits the wallet / activates the vendor, so the DB-level unique
+// constraint is the authoritative serialization point even under
+// Postgres READ COMMITTED where in-tx findFirst cannot see concurrent
+// uncommitted inserts. Application code catches P2002 on this table and
+// treats it as an idempotent replay.
+model PaymentDedup {
+  id         String   @id @default(cuid())
+  paymentRef String   @unique
+  kind       String // WALLET_RECHARGE_USER | WALLET_RECHARGE_VENDOR | VENDOR_REGISTRATION
+  consumerId String // userId or vendorId that consumed this payment
+  amountPaise Int
+  createdAt  DateTime @default(now())
+
+  @@index([consumerId])
 }
 
 model Payout {

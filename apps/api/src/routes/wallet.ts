@@ -80,29 +80,58 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
     if (payment.status !== "captured" && payment.status !== "authorized")
       throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
 
-    // Atomic dedupe + credit. Two concurrent confirms with the same
-    // razorpayPaymentId cannot both pass the dedupe check because they run
-    // in a single serialized interactive transaction — the second one sees
-    // the first one's WalletTransaction row and short-circuits.
+    // Atomic dedupe via DB-level unique constraint on PaymentDedup.paymentRef.
+    // Pure in-tx findFirst is NOT sufficient under Postgres READ COMMITTED:
+    // two concurrent interactive transactions each see "no duplicate"
+    // (neither has committed its WalletTransaction yet) and both credit the
+    // wallet. Claiming a unique row on PaymentDedup inside the same tx is
+    // the authoritative serialization point — the second concurrent tx hits
+    // P2002 on commit and rolls back cleanly. On retry it reads the existing
+    // claim and returns the original WalletTransaction idempotently.
     const userId = req.user!.sub;
-    const result = await prisma.$transaction(async (tx) => {
-      const [dup, dupVendor] = await Promise.all([
-        tx.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
-        tx.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
-      ]);
-      if (dup && dup.userId === userId) return { txn: dup, dedup: true as const };
-      if (dup || dupVendor) throw new HttpError(400, "Payment already consumed");
-      const txn = await creditUserWallet(
-        userId,
-        { amountPaise, reason: "RECHARGE", ref: body.razorpayPaymentId, note: "Razorpay recharge" },
-        tx,
-      );
-      return { txn, dedup: false as const };
-    });
+    const paymentRef = body.razorpayPaymentId;
+    let dedup = false;
+    let txn;
+    try {
+      txn = await prisma.$transaction(async (tx) => {
+        await tx.paymentDedup.create({
+          data: {
+            paymentRef,
+            kind: "WALLET_RECHARGE_USER",
+            consumerId: userId,
+            amountPaise,
+          },
+        });
+        return creditUserWallet(
+          userId,
+          { amountPaise, reason: "RECHARGE", ref: paymentRef, note: "Razorpay recharge" },
+          tx,
+        );
+      });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === "P2002") {
+        // Replay / concurrent loser — return the existing credit idempotently.
+        const existing = await prisma.paymentDedup.findUnique({ where: { paymentRef } });
+        if (!existing) throw e;
+        if (existing.kind !== "WALLET_RECHARGE_USER" || existing.consumerId !== userId)
+          throw new HttpError(400, "Payment already consumed by another flow");
+        const prior = await prisma.walletTransaction.findFirst({
+          where: { ref: paymentRef, userId },
+          orderBy: { createdAt: "desc" },
+        });
+        if (!prior) throw new HttpError(500, "Inconsistent dedup state");
+        dedup = true;
+        txn = prior;
+      } else {
+        throw e;
+      }
+    }
+    const result = { txn, dedup };
     if (!result.dedup) {
       await audit(userId, "WALLET_RECHARGE", "User", userId, {
         amountPaise,
-        paymentId: body.razorpayPaymentId,
+        paymentId: paymentRef,
       });
     }
     res.json({ transaction: result.txn });
@@ -193,26 +222,43 @@ router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
     if (payment.status !== "captured" && payment.status !== "authorized")
       throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
 
-    // Atomic dedupe + credit — see /recharge/confirm above.
+    // Atomic dedupe via PaymentDedup — see /recharge/confirm above.
     const vendorId = v.id;
-    const result = await prisma.$transaction(async (tx) => {
-      const [dup, dupVendorReg] = await Promise.all([
-        tx.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
-        tx.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
-      ]);
-      if (dup && dup.vendorId === vendorId) return dup;
-      if (dup || dupVendorReg) throw new HttpError(400, "Payment already consumed");
-      return creditVendorWallet(
-        vendorId,
-        {
-          amountPaise,
-          reason: "RECHARGE",
-          ref: body.razorpayPaymentId,
-          note: "Razorpay vendor recharge",
-        },
-        tx,
-      );
-    });
+    const paymentRef = body.razorpayPaymentId;
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        await tx.paymentDedup.create({
+          data: {
+            paymentRef,
+            kind: "WALLET_RECHARGE_VENDOR",
+            consumerId: vendorId,
+            amountPaise,
+          },
+        });
+        return creditVendorWallet(
+          vendorId,
+          { amountPaise, reason: "RECHARGE", ref: paymentRef, note: "Razorpay vendor recharge" },
+          tx,
+        );
+      });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === "P2002") {
+        const existing = await prisma.paymentDedup.findUnique({ where: { paymentRef } });
+        if (!existing) throw e;
+        if (existing.kind !== "WALLET_RECHARGE_VENDOR" || existing.consumerId !== vendorId)
+          throw new HttpError(400, "Payment already consumed by another flow");
+        const prior = await prisma.walletTransaction.findFirst({
+          where: { ref: paymentRef, vendorId },
+          orderBy: { createdAt: "desc" },
+        });
+        if (!prior) throw new HttpError(500, "Inconsistent dedup state");
+        result = prior;
+      } else {
+        throw e;
+      }
+    }
     res.json({ transaction: result });
   } catch (e) {
     next(e);

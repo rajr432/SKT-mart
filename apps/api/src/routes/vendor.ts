@@ -170,32 +170,60 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
         400,
         `Insufficient amount. Fee: ₹${(s.vendorRegistrationFee / 100).toFixed(0)}`,
       );
-    // Move all dedupe + registration-paid + vendor-existence checks INSIDE
-    // the transaction so a concurrent /wallet/recharge/confirm call with
-    // the same paymentId can't succeed in parallel (TOCTOU race).
-    const updated = await prisma.$transaction(async (tx) => {
-      const vendor = await tx.vendor.findUnique({ where: { userId: req.user!.sub } });
-      if (!vendor) throw new HttpError(404, "Apply as vendor first");
-      if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
-      const [dupVendor, dupWallet] = await Promise.all([
-        tx.vendor.findFirst({ where: { registrationPaymentRef: body.razorpayPaymentId } }),
-        tx.walletTransaction.findFirst({ where: { ref: body.razorpayPaymentId } }),
-      ]);
-      if (dupVendor || dupWallet)
-        throw new HttpError(400, "Payment already consumed");
-      const v = await tx.vendor.update({
-        where: { id: vendor.id },
-        data: {
-          registrationPaid: true,
-          registrationPaidAt: new Date(),
-          registrationPaymentRef: body.razorpayPaymentId,
-          status: "APPROVED",
-        },
+    // Two layers of atomic protection:
+    //   1. PaymentDedup unique claim on paymentRef — blocks replay across
+    //      any wallet/vendor-registration confirm endpoint. Pure in-tx
+    //      findFirst is insufficient under READ COMMITTED (concurrent
+    //      interactive txs don't observe each other's uncommitted rows).
+    //   2. `updateMany({ registrationPaid: false })` CAS on Vendor —
+    //      consistent with the /pay-registration/wallet path; prevents a
+    //      suspended vendor from replaying to reset APPROVED, and prevents
+    //      concurrent confirms on distinct paymentIds from racing on the
+    //      same vendor row.
+    const userId = req.user!.sub;
+    const paymentRef = body.razorpayPaymentId;
+    const vendorPre = await prisma.vendor.findUnique({ where: { userId } });
+    if (!vendorPre) throw new HttpError(404, "Apply as vendor first");
+    if (vendorPre.registrationPaid)
+      throw new HttpError(400, "Registration already paid");
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.paymentDedup.create({
+          data: {
+            paymentRef,
+            kind: "VENDOR_REGISTRATION",
+            consumerId: vendorPre.id,
+            amountPaise,
+          },
+        });
+        const claim = await tx.vendor.updateMany({
+          where: { id: vendorPre.id, registrationPaid: false },
+          data: {
+            registrationPaid: true,
+            registrationPaidAt: new Date(),
+            registrationPaymentRef: paymentRef,
+            status: "APPROVED",
+          },
+        });
+        if (claim.count === 0) throw new HttpError(400, "Registration already paid");
+        await tx.user.update({ where: { id: userId }, data: { role: "VENDOR" } });
+        return tx.vendor.findUniqueOrThrow({ where: { id: vendorPre.id } });
       });
-      await tx.user.update({ where: { id: req.user!.sub }, data: { role: "VENDOR" } });
-      return v;
-    });
-    res.json({ vendor: updated });
+      res.json({ vendor: updated });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === "P2002") {
+        const existing = await prisma.paymentDedup.findUnique({ where: { paymentRef } });
+        if (!existing) throw e;
+        if (existing.kind !== "VENDOR_REGISTRATION" || existing.consumerId !== vendorPre.id)
+          throw new HttpError(400, "Payment already consumed by another flow");
+        // Idempotent replay — vendor is already registered with this paymentRef.
+        const v = await prisma.vendor.findUniqueOrThrow({ where: { id: vendorPre.id } });
+        res.json({ vendor: v });
+        return;
+      }
+      throw e;
+    }
   } catch (e) {
     next(e);
   }
