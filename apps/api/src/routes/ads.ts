@@ -93,8 +93,18 @@ router.post("/:id/activate", requireAuth, async (req, res, next) => {
     const c = await prisma.adCampaign.findUnique({ where: { id: req.params.id } });
     if (!c || c.vendorId !== vendorId) return res.status(404).json({ error: "Not found" });
     const v = await prisma.vendor.findUnique({ where: { id: vendorId } });
-    if (!v || v.walletBalance < c.budgetPaise) {
-      return res.status(400).json({ error: "Insufficient wallet balance to fund the campaign" });
+    // Pay-as-you-go model: each click/impression is charged against the
+    // vendor wallet at display time (see lib/ads.ts chargeAndRecord), which
+    // auto-pauses the campaign on insufficient balance. We therefore only
+    // require the wallet to hold at least ONE click's worth of funding at
+    // activation — validating the full budget here was misleading because
+    // the balance could be spent elsewhere before first charge; the check
+    // provided false assurance. Clients must top-up if they want the
+    // campaign to keep running, which is the intended ads semantics.
+    if (!v || v.walletBalance < c.bidPaise) {
+      return res.status(400).json({
+        error: `Vendor wallet must have at least ₹${(c.bidPaise / 100).toFixed(2)} (one click's cost) to activate. Ads are pay-as-you-go and will auto-pause when balance is depleted.`,
+      });
     }
     const updated = await prisma.adCampaign.update({
       where: { id: c.id },

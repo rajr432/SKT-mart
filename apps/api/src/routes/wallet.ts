@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
 import { creditUserWallet, creditVendorWallet } from "../lib/wallet";
 import { audit } from "../lib/audit";
 import { getRazorpay, verifyRazorpaySignature } from "../lib/razorpay";
@@ -162,7 +162,7 @@ router.post("/recharge", requireAuth, async (req, res, next) => {
 });
 
 // Vendor wallet
-router.get("/vendor", requireAuth, async (req, res, next) => {
+router.get("/vendor", requireAuth, requireRole("VENDOR"), async (req, res, next) => {
   try {
     const v = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!v) return res.status(404).json({ error: "Vendor not found" });
@@ -177,7 +177,7 @@ router.get("/vendor", requireAuth, async (req, res, next) => {
   }
 });
 
-router.post("/vendor/recharge/create", requireAuth, async (req, res, next) => {
+router.post("/vendor/recharge/create", requireAuth, requireRole("VENDOR"), async (req, res, next) => {
   try {
     const { amountPaise } = rechargeSchema.parse(req.body);
     const v = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
@@ -200,7 +200,7 @@ router.post("/vendor/recharge/create", requireAuth, async (req, res, next) => {
   }
 });
 
-router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
+router.post("/vendor/recharge/confirm", requireAuth, requireRole("VENDOR"), async (req, res, next) => {
   try {
     const body = confirmSchema.parse(req.body);
     const v = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
@@ -265,7 +265,7 @@ router.post("/vendor/recharge/confirm", requireAuth, async (req, res, next) => {
   }
 });
 
-router.post("/vendor/recharge", requireAuth, async (req, res, next) => {
+router.post("/vendor/recharge", requireAuth, requireRole("VENDOR"), async (req, res, next) => {
   try {
     if (IS_PROD)
       throw new HttpError(
