@@ -6,6 +6,9 @@ import { HttpError } from "../middleware/error";
 import { getSettings } from "../lib/settings";
 import { debitUserWallet } from "../lib/wallet";
 import { getRazorpay, verifyRazorpaySignature } from "../lib/razorpay";
+import { notify } from "../lib/notify";
+import { sendPushToUser } from "../lib/push";
+import { sendWhatsApp } from "../lib/whatsapp";
 
 const router = Router();
 
@@ -353,7 +356,12 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
       .parse(req.body);
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
     if (!vendor) throw new HttpError(404, "Vendor profile not found");
-    const orderItem = await prisma.orderItem.findUnique({ where: { id: req.params.orderItemId } });
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: req.params.orderItemId },
+      include: {
+        order: { select: { id: true, userId: true, user: { select: { phone: true } } } },
+      },
+    });
     if (!orderItem || orderItem.vendorId !== vendor.id)
       throw new HttpError(404, "Order item not found");
     const updated = await prisma.orderItem.update({
@@ -361,6 +369,35 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
       data: { status },
     });
     res.json({ orderItem: updated });
+
+    // Customer-facing status-change notification (email + in-app + push + WhatsApp)
+    // Fire-and-forget so the HTTP response is never blocked by slow SMTP / Meta.
+    void (async () => {
+      try {
+        const statusLabel: Record<string, string> = {
+          CONFIRMED: "confirmed",
+          PACKED: "packed",
+          SHIPPED: "shipped",
+          OUT_FOR_DELIVERY: "out for delivery",
+          DELIVERED: "delivered",
+        };
+        const label = statusLabel[status] ?? status.toLowerCase();
+        const title = `Order ${label} — ${orderItem.name}`;
+        const body = `Your order #${orderItem.order.id.slice(-8).toUpperCase()} has been ${label}. Track it in real time.`;
+        const link = `/orders/${orderItem.order.id}`;
+        await notify(orderItem.order.userId, "ORDER", title, body, link);
+        await sendPushToUser(orderItem.order.userId, { title, body, url: link }).catch(() => {});
+        if (orderItem.order.user?.phone) {
+          await sendWhatsApp(
+            orderItem.order.user.phone,
+            `SKT Mart: ${title}\n${body}\nhttps://sktmart.vercel.app${link}`,
+          ).catch(() => {});
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("[vendor.status.notify]", (err as Error).message);
+      }
+    })();
   } catch (e) {
     next(e);
   }

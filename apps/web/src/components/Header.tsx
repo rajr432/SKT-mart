@@ -283,8 +283,11 @@ export default function Header() {
           <Link href="/category/beauty" className="hover:text-brand whitespace-nowrap">
             Beauty
           </Link>
-          <Link href="/category/grocery" className="hover:text-brand whitespace-nowrap">
-            Grocery
+          <Link href="/category/books" className="hover:text-brand whitespace-nowrap">
+            Books
+          </Link>
+          <Link href="/category/sports" className="hover:text-brand whitespace-nowrap">
+            Sports
           </Link>
           <Link href="/category/mobiles" className="hover:text-brand whitespace-nowrap">
             Mobiles

@@ -17,9 +17,11 @@ export default function Footer() {
         <div>
           <h4 className="text-gray-400 uppercase text-xs mb-3">About</h4>
           <ul className="space-y-2">
-            <li><Link href="/about">Contact Us</Link></li>
+            <li><Link href="/contact">Contact Us</Link></li>
             <li><Link href="/about">About Us</Link></li>
-            <li><Link href="/vendor/onboarding">Careers / Sell</Link></li>
+            <li><Link href="/vendor/onboarding">Sell on SKT Mart</Link></li>
+            <li><Link href="/account/orders">Track Orders</Link></li>
+            <li><a href="mailto:sktmart25@gmail.com">Support Email</a></li>
           </ul>
         </div>
         <div>
@@ -28,6 +30,8 @@ export default function Footer() {
             <li><Link href="/contact">Contact</Link></li>
             <li><Link href="/return-policy">Returns</Link></li>
             <li><Link href="/shipping-policy">Shipping</Link></li>
+            <li><Link href="/faq">FAQ</Link></li>
+            <li><Link href="/help">Help Center</Link></li>
           </ul>
         </div>
         <div>
@@ -40,12 +44,12 @@ export default function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="text-gray-400 uppercase text-xs mb-3">Mail Us</h4>
+          <h4 className="text-gray-400 uppercase text-xs mb-3">Support</h4>
           <p className="text-xs leading-5">
-            SKT Mart Internet Private Limited,<br />
-            Block A, 4th Floor,<br />
-            Tower 1, Cyber Corridor,<br />
-            Bengaluru, Karnataka 560103
+            <a href="mailto:sktmart25@gmail.com" className="text-white font-medium">sktmart25@gmail.com</a><br />
+            24×7 email support<br />
+            Avg response: &lt;12 hours<br />
+            Need urgent help? Use the chat bubble ↘︎
           </p>
         </div>
         <div>
@@ -53,7 +57,7 @@ export default function Footer() {
           <p className="text-xs leading-5">
             SKT Mart Internet Private Limited,<br />
             CIN: U51109KA2025PTC000000<br />
-            Email: support@sktmart.com<br />
+            Email: <a href="mailto:sktmart25@gmail.com" className="text-white">sktmart25@gmail.com</a><br />
             Phone: 1800-000-0000
           </p>
         </div>

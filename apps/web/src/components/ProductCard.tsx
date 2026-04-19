@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Product } from "@/lib/types";
 import { discountPercent, formatPaise } from "@/lib/api";
+import ShareButton from "./ShareButton";
 
 export default function ProductCard({ product }: { product: Product }) {
   const img = product.images?.[0]?.url ?? "https://picsum.photos/seed/sktfallback/600/600";
@@ -16,6 +17,13 @@ export default function ProductCard({ product }: { product: Product }) {
           {off}% OFF
         </span>
       )}
+      <ShareButton
+        url={`/product/${product.slug}`}
+        title={product.name}
+        text={`Check out ${product.name} on SKT Mart — ${formatPaise(product.price)}`}
+        className="absolute top-2 right-2 z-10"
+        compact
+      />
       <div className="aspect-square bg-gradient-to-br from-gray-50 to-white flex items-center justify-center overflow-hidden rounded">
         <img
           src={img}

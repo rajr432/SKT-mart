@@ -55,7 +55,8 @@ export default function MobileDrawer() {
         { href: "/category/electronics", label: "Electronics", icon: "💻" },
         { href: "/category/home-kitchen", label: "Home & Kitchen", icon: "🏠" },
         { href: "/category/beauty", label: "Beauty", icon: "💄" },
-        { href: "/category/grocery", label: "Grocery", icon: "🛒" },
+        { href: "/category/books", label: "Books", icon: "📚" },
+        { href: "/category/sports", label: "Sports", icon: "⚽" },
       ],
     },
     {
