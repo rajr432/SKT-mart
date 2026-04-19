@@ -9,7 +9,9 @@ export interface CommissionResult {
 
 /**
  * Compute platform commission for a single order line item.
- * Default rule: 10% on items priced above ₹500 (per unit), 5% otherwise.
+ * Default rule: `commissionPercent` (10%) applies when the unit price is
+ * at least `commissionThreshold` paise (default 49900 = ₹499);
+ * `commissionPercentBelow` (5%) applies below the threshold.
  * Vendor's commissionOverride takes precedence (if set).
  */
 export async function computeCommission(
@@ -29,7 +31,7 @@ export async function computeCommission(
 
   if (vendorId) {
     const v = await prisma.vendor.findUnique({ where: { id: vendorId } });
-    if (v?.commissionOverride !== null && v?.commissionOverride !== undefined) {
+    if (v?.commissionOverride != null) {
       percent = v.commissionOverride;
     }
   }

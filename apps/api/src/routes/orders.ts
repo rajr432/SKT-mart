@@ -414,6 +414,17 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           data: { stock: { increment: it.quantity } },
         });
       }
+      // Free the coupon usage slot on cancel. Without this, a limited-use
+      // coupon (e.g. usageLimit=1) stays permanently consumed by this
+      // cancelled order, blocking other users. Guarded by `usedCount > 0`
+      // so we never decrement below zero (defensive — the increment at
+      // order placement is also conditional).
+      if (o.couponCode) {
+        await tx.$executeRawUnsafe(
+          `UPDATE "Coupon" SET "usedCount" = "usedCount" - 1 WHERE code = $1 AND "usedCount" > 0`,
+          o.couponCode,
+        );
+      }
       // Read `paymentStatus` from the tx-fresh row (`o`), NOT the outer
       // `order` — a concurrent Razorpay webhook could have flipped
       // PENDING→PAID between the outer find and this tx, and skipping

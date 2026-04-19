@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { creditUserWallet } from "../lib/wallet";
 import { notify } from "../lib/notify";
 import { generateOrderNumber } from "../lib/order";
+import { HttpError } from "../middleware/error";
 
 const router = Router();
 
@@ -29,24 +30,6 @@ router.post("/", requireAuth, async (req, res, next) => {
     if (!order || order.userId !== req.user!.sub) return res.status(404).json({ error: "Not found" });
     if (order.status !== "DELIVERED") return res.status(400).json({ error: "Only delivered orders can be returned" });
 
-    // Prevent duplicate returns targeting the same order items. Without this,
-    // a customer could submit N returns for the same item and, if an admin
-    // approves each independently, get N refunds. REJECTED returns are fine
-    // to re-request against.
-    const requestedIds = body.items.map((i) => i.orderItemId);
-    const existingDup = await prisma.returnItem.findFirst({
-      where: {
-        orderItemId: { in: requestedIds },
-        return: { status: { notIn: ["REJECTED"] } },
-      },
-      include: { return: { select: { rmaNumber: true, status: true } } },
-    });
-    if (existingDup) {
-      return res.status(409).json({
-        error: `A return already exists for one or more of these items (RMA ${existingDup.return.rmaNumber}, status ${existingDup.return.status})`,
-      });
-    }
-
     // Prorate the order-level discount (coupons etc.) across returned items.
     // The sum of order.items[].price * quantity is the pre-coupon item total;
     // order.total already accounts for every discount. Refunding raw price*qty
@@ -69,19 +52,44 @@ router.post("/", requireAuth, async (req, res, next) => {
       return { orderItemId: oi.id, productId: oi.productId, quantity: qty, refundPaise: refund };
     });
 
-    const ret = await prisma.return.create({
-      data: {
-        rmaNumber: "RMA-" + generateOrderNumber().slice(4),
-        orderId: order.id,
-        userId: order.userId,
-        reason: body.reason,
-        description: body.description,
-        refundMode: body.refundMode,
-        refundPaise,
-        items: { create: itemsData },
+    const requestedIds = body.items.map((i) => i.orderItemId);
+    // Duplicate check + create MUST be in the same tx — otherwise two
+    // concurrent POSTs can both pass the `findFirst` guard (neither sees
+    // the other's uncommitted insert) and each create a Return, leading
+    // to double refunds on admin approval. REJECTED returns are fine to
+    // re-request against. Serializable isolation ensures the findFirst
+    // read-set is protected from phantom inserts within this tx.
+    const ret = await prisma.$transaction(
+      async (tx) => {
+        const existingDup = await tx.returnItem.findFirst({
+          where: {
+            orderItemId: { in: requestedIds },
+            return: { status: { notIn: ["REJECTED"] } },
+          },
+          include: { return: { select: { rmaNumber: true, status: true } } },
+        });
+        if (existingDup) {
+          throw new HttpError(
+            409,
+            `A return already exists for one or more of these items (RMA ${existingDup.return.rmaNumber}, status ${existingDup.return.status})`,
+          );
+        }
+        return tx.return.create({
+          data: {
+            rmaNumber: "RMA-" + generateOrderNumber().slice(4),
+            orderId: order.id,
+            userId: order.userId,
+            reason: body.reason,
+            description: body.description,
+            refundMode: body.refundMode,
+            refundPaise,
+            items: { create: itemsData },
+          },
+          include: { items: true },
+        });
       },
-      include: { items: true },
-    });
+      { isolationLevel: "Serializable" },
+    );
 
     await notify(order.userId, "RETURN", `Return requested: ${ret.rmaNumber}`, `We'll review your request shortly.`, `/orders/${order.id}`);
     res.status(201).json({ return: ret });
