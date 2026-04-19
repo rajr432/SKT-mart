@@ -229,9 +229,12 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
   }
 });
 
-// ==== All following routes require VENDOR/ADMIN role AND paid registration ====
+// ==== All following routes require VENDOR/ADMIN role ====
 router.use(requireAuth, requireRole("VENDOR", "ADMIN"));
 
+// Allow a VENDOR-role user to read their own profile even if unpaid, so the
+// onboarding UI can poll status. Operational routes below require a paid
+// registration (enforced by the registrationPaidGuard middleware).
 router.get("/me", async (req, res, next) => {
   try {
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
@@ -242,16 +245,24 @@ router.get("/me", async (req, res, next) => {
   }
 });
 
-// Back-compat alias for legacy clients
-router.post("/", requireAuth, async (req, res, next) => {
+// Enforce paid registration for all subsequent operational routes (products,
+// orders, returns, etc.). ADMIN bypasses. This is the belt-and-suspenders
+// check that closes the gap where a VENDOR-role user created outside the
+// paid flow (e.g. legacy data, admin-minted, or a future registration bug)
+// could otherwise list products and transact before paying the fee.
+router.use(async (req, _res, next) => {
   try {
-    const data = vendorSchema.parse(req.body);
-    const existing = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
-    if (existing) throw new HttpError(409, "Vendor profile already exists");
-    const vendor = await prisma.vendor.create({
-      data: { ...data, userId: req.user!.sub },
+    if (req.user!.role === "ADMIN") return next();
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId: req.user!.sub },
+      select: { registrationPaid: true, status: true },
     });
-    res.status(201).json({ vendor });
+    if (!vendor) throw new HttpError(404, "Vendor profile not found");
+    if (!vendor.registrationPaid)
+      throw new HttpError(402, "Vendor registration fee not paid");
+    if (vendor.status === "SUSPENDED")
+      throw new HttpError(403, "Vendor account suspended");
+    next();
   } catch (e) {
     next(e);
   }

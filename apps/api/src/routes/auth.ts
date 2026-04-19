@@ -75,7 +75,11 @@ const registerSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().min(10).optional(),
   password: z.string().min(6),
-  role: z.enum(["CUSTOMER", "VENDOR"]).default("CUSTOMER"),
+  // Role is intentionally NOT accepted from the client. Self-registration
+  // always creates a CUSTOMER. Becoming a VENDOR requires the paid onboarding
+  // flow (/api/vendor/apply + /api/vendor/pay-registration/*), which upgrades
+  // the user's role only after the ₹199 lifetime fee is settled. Without this
+  // restriction, a client could send `role: "VENDOR"` and skip the fee.
 });
 
 router.post("/register", async (req, res, next) => {
@@ -96,7 +100,7 @@ router.post("/register", async (req, res, next) => {
         email: body.email,
         phone: body.phone,
         password,
-        role: body.role,
+        role: "CUSTOMER",
       },
     });
     const token = signJwt({ sub: user.id, role: user.role, email: user.email, phone: user.phone });
