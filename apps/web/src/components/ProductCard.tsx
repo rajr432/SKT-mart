@@ -1,12 +1,41 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { Product } from "@/lib/types";
 import { discountPercent, formatPaise } from "@/lib/api";
 import ShareButton from "./ShareButton";
+import { addToCompare, isInCompare, removeFromCompare } from "./CompareDrawer";
 
 export default function ProductCard({ product }: { product: Product }) {
   const img = product.images?.[0]?.url ?? "https://picsum.photos/seed/sktfallback/600/600";
   const off = discountPercent(product.mrp, product.price);
   const showCommission = product.price >= 49900;
+  const [comparing, setComparing] = useState(false);
+
+  useEffect(() => {
+    setComparing(isInCompare(product.id));
+    const onChange = () => setComparing(isInCompare(product.id));
+    window.addEventListener("skt:compare:change", onChange);
+    return () => window.removeEventListener("skt:compare:change", onChange);
+  }, [product.id]);
+
+  const toggleCompare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (comparing) {
+      removeFromCompare(product.id);
+    } else {
+      addToCompare({
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        image: img,
+        price: product.price,
+      });
+    }
+  };
+
   return (
     <Link
       href={`/product/${product.slug}`}
@@ -17,14 +46,28 @@ export default function ProductCard({ product }: { product: Product }) {
           {off}% OFF
         </span>
       )}
-      <ShareButton
-        url={`/product/${product.slug}`}
-        title={product.name}
-        text={`Check out ${product.name} on SKT Mart — ${formatPaise(product.price)}`}
-        className="absolute top-2 right-2 z-10"
-        compact
-      />
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+        <ShareButton
+          url={`/product/${product.slug}`}
+          title={product.name}
+          text={`Check out ${product.name} on SKT Mart — ${formatPaise(product.price)}`}
+          compact
+        />
+        <button
+          onClick={toggleCompare}
+          aria-label={comparing ? "Remove from compare" : "Add to compare"}
+          title={comparing ? "Remove from compare" : "Add to compare"}
+          className={`text-xs px-1.5 py-0.5 rounded shadow border ${
+            comparing
+              ? "bg-brand text-white border-brand"
+              : "bg-white text-gray-700 border-gray-200 hover:border-brand hover:text-brand"
+          }`}
+        >
+          {comparing ? "✓" : "⇄"}
+        </button>
+      </div>
       <div className="aspect-square bg-gradient-to-br from-gray-50 to-white flex items-center justify-center overflow-hidden rounded">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={img}
           alt={product.name}

@@ -368,6 +368,54 @@ router.get("/", requireAuth, async (req, res, next) => {
   }
 });
 
+// Public order tracking by orderNumber (used by /track page). Exposes only
+// the status-timeline + totals — never PII (address, phone, email, items).
+// Anyone with an orderNumber can look up status; deliberately minimal data.
+router.get("/track/:orderNumber", async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { orderNumber: req.params.orderNumber },
+      select: {
+        orderNumber: true,
+        status: true,
+        total: true,
+        placedAt: true,
+        items: { select: { status: true } },
+      },
+    });
+    if (!order) throw new HttpError(404, "Order not found. Check the number and try again.");
+    // Expected delivery: placedAt + 5 days (fallback when no logistics ETA).
+    const placed = order.placedAt;
+    const expectedBy = new Date(placed.getTime() + 5 * 24 * 60 * 60 * 1000);
+    const STATUS_ORDER = [
+      "PLACED",
+      "CONFIRMED",
+      "PACKED",
+      "SHIPPED",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+    ];
+    const currentIdx = STATUS_ORDER.indexOf(order.status);
+    const steps = STATUS_ORDER.map((status, i) => ({
+      status,
+      done: currentIdx >= i,
+      at: currentIdx >= i ? placed.toISOString() : null,
+    }));
+    res.json({
+      order: {
+        orderNumber: order.orderNumber,
+        status: order.status,
+        total: order.total,
+        createdAt: placed.toISOString(),
+        expectedBy: expectedBy.toISOString(),
+        steps,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/:id", requireAuth, async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({

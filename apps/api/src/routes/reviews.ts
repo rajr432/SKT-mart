@@ -6,6 +6,25 @@ import { HttpError } from "../middleware/error";
 
 const router = Router();
 
+// Reviews written by the authenticated user (for /account/reviews page).
+// Newest first, includes product slug + primary image so the UI can link back.
+router.get("/mine", requireAuth, async (req, res, next) => {
+  try {
+    const items = await prisma.review.findMany({
+      where: { userId: req.user!.sub },
+      orderBy: { createdAt: "desc" },
+      include: {
+        product: {
+          select: { id: true, name: true, slug: true, images: { take: 1 } },
+        },
+      },
+    });
+    res.json({ items });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/product/:productId", async (req, res, next) => {
   try {
     const reviews = await prisma.review.findMany({

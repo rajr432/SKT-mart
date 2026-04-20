@@ -23,6 +23,37 @@ router.get("/public/fee", async (_req, res, next) => {
   }
 });
 
+// Public vendor storefront — list a vendor's products by store slug. No auth
+// required; used by /store/[slug] on the web. Only approved + paid vendors
+// are exposed so unpaid profiles don't show up with zero products.
+router.get("/public/store/:slug", async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({
+      where: { slug: req.params.slug },
+      select: {
+        id: true,
+        storeName: true,
+        slug: true,
+        description: true,
+        status: true,
+        registrationPaid: true,
+        createdAt: true,
+      },
+    });
+    if (!vendor || !vendor.registrationPaid || vendor.status !== "APPROVED")
+      throw new HttpError(404, "Store not found");
+    const products = await prisma.product.findMany({
+      where: { vendorId: vendor.id, published: true },
+      include: { images: { take: 1 }, category: { select: { name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 60,
+    });
+    res.json({ vendor, products });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Allows any logged-in user (customer or pending vendor) to check their
 // vendor profile + payment status without needing VENDOR role.
 router.get("/status", requireAuth, async (req, res, next) => {

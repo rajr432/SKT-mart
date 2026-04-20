@@ -154,25 +154,31 @@ export default function Header() {
                     🪙 SKT Coins
                   </Link>
                   <Link
-                    href="/account/gift-cards"
+                    href="/account/giftcards"
                     className="block px-4 py-2 hover:bg-gray-100 text-sm"
                   >
                     🎁 Gift Cards
                   </Link>
                   <Link
-                    href="/account/referrals"
+                    href="/account/referral"
                     className="block px-4 py-2 hover:bg-gray-100 text-sm"
                   >
                     🤝 Refer &amp; Earn
                   </Link>
                   <Link
-                    href="/notifications"
+                    href="/account/notifications"
                     className="block px-4 py-2 hover:bg-gray-100 text-sm"
                   >
                     🔔 Notifications {notifCount > 0 && `(${notifCount})`}
                   </Link>
-                  <Link href="/returns" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                  <Link href="/account/returns" className="block px-4 py-2 hover:bg-gray-100 text-sm">
                     ↩ Returns
+                  </Link>
+                  <Link href="/account/reviews" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    ★ My Reviews
+                  </Link>
+                  <Link href="/account/coupons" className="block px-4 py-2 hover:bg-gray-100 text-sm">
+                    🏷 My Coupons
                   </Link>
                   <div className="border-t my-1" />
                   {user.role === "VENDOR" && (
@@ -214,7 +220,7 @@ export default function Header() {
             </Link>
           )}
 
-          <Link href="/notifications" className="relative" aria-label="notifications">
+          <Link href="/account/notifications" className="relative" aria-label="notifications">
             🔔
             {notifCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 grid place-items-center">
@@ -249,7 +255,7 @@ export default function Header() {
 
         {/* Mobile-only compact icons */}
         <nav className="flex md:hidden items-center gap-3 text-lg">
-          <Link href="/notifications" className="relative" aria-label="notifications">
+          <Link href="/account/notifications" className="relative" aria-label="notifications">
             🔔
             {notifCount > 0 && (
               <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 grid place-items-center font-bold">
@@ -298,10 +304,10 @@ export default function Header() {
           <Link href="/brands" className="hover:text-brand whitespace-nowrap">
             Top Brands
           </Link>
-          <Link href="/gift-cards" className="hover:text-brand whitespace-nowrap">
+          <Link href="/account/giftcards" className="hover:text-brand whitespace-nowrap">
             🎁 Gift Cards
           </Link>
-          <Link href="/account/coins" className="hover:text-brand whitespace-nowrap">
+          <Link href="/account/loyalty" className="hover:text-brand whitespace-nowrap">
             🪙 SKT Coins
           </Link>
           <Link href="/track" className="hover:text-brand whitespace-nowrap">

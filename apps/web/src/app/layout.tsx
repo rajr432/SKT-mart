@@ -11,6 +11,7 @@ import LiveChatWidget from "@/components/LiveChatWidget";
 import ScrollToTop from "@/components/ScrollToTop";
 import AppUpdateBanner from "@/components/AppUpdateBanner";
 import OfferStrip from "@/components/OfferStrip";
+import CompareDrawer from "@/components/CompareDrawer";
 
 export const metadata: Metadata = {
   title: {
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LiveChatWidget />
           <ScrollToTop />
           <AppUpdateBanner />
+          <CompareDrawer />
         </Providers>
       </body>
     </html>

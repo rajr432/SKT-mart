@@ -20,7 +20,7 @@ export default function Footer() {
             <li><Link href="/contact">Contact Us</Link></li>
             <li><Link href="/about">About Us</Link></li>
             <li><Link href="/vendor/onboarding">Sell on SKT Mart</Link></li>
-            <li><Link href="/account/orders">Track Orders</Link></li>
+            <li><Link href="/track">Track Orders</Link></li>
             <li><a href="mailto:sktmart25@gmail.com">Support Email</a></li>
           </ul>
         </div>

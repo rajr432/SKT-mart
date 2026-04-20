@@ -82,7 +82,7 @@ export default function AccountPage() {
         { href: "/wishlist", label: "Wishlist", icon: "♥", count: counts.wishlist },
         { href: "/account/returns", label: "Returns", icon: "↩", count: counts.returns },
         {
-          href: "/notifications",
+          href: "/account/notifications",
           label: "Notifications",
           icon: "🔔",
           count: counts.notifUnread,
@@ -95,9 +95,9 @@ export default function AccountPage() {
       tiles: [
         { href: "/account/wallet", label: "SKT Wallet", icon: "💰", count: rupees(counts.wallet) },
         { href: "/account/loyalty", label: "SKT Coins", icon: "🪙", count: counts.coins },
-        { href: "/account/gift-cards", label: "Gift Cards", icon: "🎁" },
+        { href: "/account/giftcards", label: "Gift Cards", icon: "🎁" },
         { href: "/account/coupons", label: "Coupons", icon: "🏷" },
-        { href: "/account/referrals", label: "Refer & Earn", icon: "🤝" },
+        { href: "/account/referral", label: "Refer & Earn", icon: "🤝" },
       ],
     },
     {
@@ -232,11 +232,11 @@ export default function AccountPage() {
           </p>
           <ul className="divide-y text-sm">
             {[
-              ["/policies/terms", "Terms of Use"],
-              ["/policies/privacy", "Privacy Policy"],
-              ["/policies/return", "Return Policy"],
-              ["/policies/refund", "Refund Policy"],
-              ["/policies/shipping", "Shipping Policy"],
+              ["/terms", "Terms of Use"],
+              ["/privacy-policy", "Privacy Policy"],
+              ["/return-policy", "Return Policy"],
+              ["/refund-policy", "Refund Policy"],
+              ["/shipping-policy", "Shipping Policy"],
               ["/about", "About SKT Mart"],
               ["/contact", "Contact / Grievance"],
             ].map(([href, label]) => (
