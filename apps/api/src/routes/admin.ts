@@ -134,6 +134,24 @@ router.get("/products", async (_req, res, next) => {
   }
 });
 
+// Bulk publish/unpublish — accepts an array of product IDs and a target state.
+// MUST be registered BEFORE the parameterized "/products/:id" route, otherwise
+// Express matches ":id" = "bulk" first and this handler becomes unreachable.
+router.patch("/products/bulk/publish", async (req, res, next) => {
+  try {
+    const { ids, published } = z
+      .object({ ids: z.array(z.string()).min(1), published: z.boolean() })
+      .parse(req.body);
+    const r = await prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { published },
+    });
+    res.json({ count: r.count });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.patch("/products/:id", async (req, res, next) => {
   try {
     const { published } = z.object({ published: z.boolean() }).parse(req.body);
@@ -154,22 +172,6 @@ router.delete("/products/:id", async (req, res, next) => {
   try {
     await prisma.product.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
-  }
-});
-
-// Bulk publish/unpublish — accepts an array of product IDs and a target state.
-router.patch("/products/bulk/publish", async (req, res, next) => {
-  try {
-    const { ids, published } = z
-      .object({ ids: z.array(z.string()).min(1), published: z.boolean() })
-      .parse(req.body);
-    const r = await prisma.product.updateMany({
-      where: { id: { in: ids } },
-      data: { published },
-    });
-    res.json({ count: r.count });
   } catch (e) {
     next(e);
   }
