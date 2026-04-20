@@ -147,6 +147,34 @@ router.patch("/products/:id", async (req, res, next) => {
   }
 });
 
+// Hard-delete a product. Cascades to images/reviews/cartItems via schema FKs;
+// orderItems retain a denormalized name+price snapshot so historical orders
+// stay intact even after the product row is removed.
+router.delete("/products/:id", async (req, res, next) => {
+  try {
+    await prisma.product.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Bulk publish/unpublish — accepts an array of product IDs and a target state.
+router.patch("/products/bulk/publish", async (req, res, next) => {
+  try {
+    const { ids, published } = z
+      .object({ ids: z.array(z.string()).min(1), published: z.boolean() })
+      .parse(req.body);
+    const r = await prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { published },
+    });
+    res.json({ count: r.count });
+  } catch (e) {
+    next(e);
+  }
+});
+
 const bannerSchema = z.object({
   title: z.string(),
   image: z.string(),

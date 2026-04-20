@@ -88,6 +88,7 @@ export default function AccountPage() {
           count: counts.notifUnread,
         },
         { href: "/account/reviews", label: "My reviews", icon: "⭐" },
+        { href: "/account/alerts", label: "My alerts", icon: "🔔" },
       ],
     },
     {

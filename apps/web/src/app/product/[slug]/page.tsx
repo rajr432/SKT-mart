@@ -9,6 +9,7 @@ import ProductCard from "@/components/ProductCard";
 import TrustBadges from "@/components/TrustBadges";
 import DeliveryEstimator from "@/components/DeliveryEstimator";
 import SizeGuideButton from "@/components/SizeGuideButton";
+import ProductAlerts from "@/components/ProductAlerts";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <DeliveryEstimator />
             <SizeGuideButton />
           </div>
+
+          <ProductAlerts
+            productId={product.id}
+            currentPrice={product.price}
+            inStock={product.stock > 0}
+          />
 
           <PincodeCheck />
 
