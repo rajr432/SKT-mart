@@ -109,15 +109,33 @@ router.post("/pay-registration/wallet", requireAuth, async (req, res, next) => {
       const vendor = await tx.vendor.findUnique({ where: { userId: req.user!.sub } });
       if (!vendor) throw new HttpError(404, "Apply as vendor first");
       if (vendor.registrationPaid) throw new HttpError(400, "Registration already paid");
+      // CAS guard also excludes REJECTED/SUSPENDED so a vendor the admin
+      // explicitly rejected/suspended can't self-approve by paying the fee
+      // (registrationPaid may still be false for them). Distinguishes the
+      // failure reason with a fresh re-read so the client gets a 403 for
+      // admin-blocked status, not a misleading "already paid" 400.
       const claim = await tx.vendor.updateMany({
-        where: { id: vendor.id, registrationPaid: false },
+        where: {
+          id: vendor.id,
+          registrationPaid: false,
+          status: { notIn: ["REJECTED", "SUSPENDED"] },
+        },
         data: {
           registrationPaid: true,
           registrationPaidAt: new Date(),
           status: "APPROVED",
         },
       });
-      if (claim.count === 0) throw new HttpError(400, "Registration already paid");
+      if (claim.count === 0) {
+        const fresh = await tx.vendor.findUnique({
+          where: { id: vendor.id },
+          select: { registrationPaid: true, status: true },
+        });
+        if (fresh?.registrationPaid) throw new HttpError(400, "Registration already paid");
+        if (fresh?.status === "REJECTED" || fresh?.status === "SUSPENDED")
+          throw new HttpError(403, `Vendor account is ${fresh.status.toLowerCase()}. Contact support.`);
+        throw new HttpError(400, "Registration cannot be completed");
+      }
       const w = await debitUserWallet(
         req.user!.sub,
         { amountPaise: fee, reason: "REGISTRATION_FEE", ref: vendor.id, note: "Vendor registration fee" },
@@ -228,8 +246,14 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
             amountPaise,
           },
         });
+        // Mirror the wallet path: exclude REJECTED/SUSPENDED from the CAS
+        // claim so an admin-rejected vendor can't self-approve by paying.
         const claim = await tx.vendor.updateMany({
-          where: { id: vendorPre.id, registrationPaid: false },
+          where: {
+            id: vendorPre.id,
+            registrationPaid: false,
+            status: { notIn: ["REJECTED", "SUSPENDED"] },
+          },
           data: {
             registrationPaid: true,
             registrationPaidAt: new Date(),
@@ -237,7 +261,16 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
             status: "APPROVED",
           },
         });
-        if (claim.count === 0) throw new HttpError(400, "Registration already paid");
+        if (claim.count === 0) {
+          const fresh = await tx.vendor.findUnique({
+            where: { id: vendorPre.id },
+            select: { registrationPaid: true, status: true },
+          });
+          if (fresh?.registrationPaid) throw new HttpError(400, "Registration already paid");
+          if (fresh?.status === "REJECTED" || fresh?.status === "SUSPENDED")
+            throw new HttpError(403, `Vendor account is ${fresh.status.toLowerCase()}. Contact support.`);
+          throw new HttpError(400, "Registration cannot be completed");
+        }
         await tx.user.update({ where: { id: userId }, data: { role: "VENDOR" } });
         return tx.vendor.findUniqueOrThrow({ where: { id: vendorPre.id } });
       });
