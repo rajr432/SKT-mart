@@ -575,8 +575,11 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
         where: { id: order.id },
         include: { items: true },
       });
-      // restock
+      // restock — skip items already CANCELLED/RETURNED (their stock was
+      // either never deducted or already restored by a prior path). Mirrors
+      // the admin cancel flow in admin.ts:395-401.
       for (const it of o.items) {
+        if (it.status === "CANCELLED" || it.status === "RETURNED") continue;
         await tx.product.update({
           where: { id: it.productId },
           data: { stock: { increment: it.quantity } },
@@ -596,26 +599,37 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
       // Clawback loyalty points awarded at order placement. Without this, a
       // user could place → cancel in a loop and farm free points (they're
       // spendable at checkout like real money). Guarded by findFirst so we
-      // never double-clawback if this cancel path is reached twice.
+      // never double-clawback if this cancel path is reached twice. Clamp
+      // the decrement to the current balance — between ORDER_EARN and
+      // cancel the user may have already redeemed some/all of those points
+      // elsewhere; clawing back the full earn unconditionally would drive
+      // loyaltyPoints negative and corrupt downstream balance checks.
       const earned = await tx.loyaltyTransaction.findFirst({
         where: { userId: o.userId, ref: o.id, reason: "ORDER_EARN" },
         select: { points: true },
       });
       if (earned && earned.points > 0) {
-        const userAfter = await tx.user.update({
+        const current = await tx.user.findUniqueOrThrow({
           where: { id: o.userId },
-          data: { loyaltyPoints: { decrement: earned.points } },
           select: { loyaltyPoints: true },
         });
-        await tx.loyaltyTransaction.create({
-          data: {
-            userId: o.userId,
-            points: -earned.points,
-            reason: "ORDER_CANCEL",
-            ref: o.id,
-            balanceAfter: userAfter.loyaltyPoints,
-          },
-        });
+        const clawback = Math.min(earned.points, current.loyaltyPoints);
+        if (clawback > 0) {
+          const userAfter = await tx.user.update({
+            where: { id: o.userId },
+            data: { loyaltyPoints: { decrement: clawback } },
+            select: { loyaltyPoints: true },
+          });
+          await tx.loyaltyTransaction.create({
+            data: {
+              userId: o.userId,
+              points: -clawback,
+              reason: "ORDER_CANCEL",
+              ref: o.id,
+              balanceAfter: userAfter.loyaltyPoints,
+            },
+          });
+        }
       }
       // Read `paymentStatus` from the tx-fresh row (`o`), NOT the outer
       // `order` — a concurrent Razorpay webhook could have flipped

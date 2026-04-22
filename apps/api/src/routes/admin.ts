@@ -406,27 +406,35 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
         );
       }
       // Clawback loyalty points awarded at placement — mirrors the customer
-      // cancel flow in orders.ts. Without this the user keeps the points
-      // (which are spendable at checkout like real money) on admin cancel.
+      // cancel flow in orders.ts. Clamped to current balance so partial
+      // redemption between earn and cancel doesn't drive loyaltyPoints
+      // negative.
       const earned = await tx.loyaltyTransaction.findFirst({
         where: { userId: o.userId, ref: o.id, reason: "ORDER_EARN" },
         select: { points: true },
       });
       if (earned && earned.points > 0) {
-        const userAfter = await tx.user.update({
+        const current = await tx.user.findUniqueOrThrow({
           where: { id: o.userId },
-          data: { loyaltyPoints: { decrement: earned.points } },
           select: { loyaltyPoints: true },
         });
-        await tx.loyaltyTransaction.create({
-          data: {
-            userId: o.userId,
-            points: -earned.points,
-            reason: "ORDER_CANCEL",
-            ref: o.id,
-            balanceAfter: userAfter.loyaltyPoints,
-          },
-        });
+        const clawback = Math.min(earned.points, current.loyaltyPoints);
+        if (clawback > 0) {
+          const userAfter = await tx.user.update({
+            where: { id: o.userId },
+            data: { loyaltyPoints: { decrement: clawback } },
+            select: { loyaltyPoints: true },
+          });
+          await tx.loyaltyTransaction.create({
+            data: {
+              userId: o.userId,
+              points: -clawback,
+              reason: "ORDER_CANCEL",
+              ref: o.id,
+              balanceAfter: userAfter.loyaltyPoints,
+            },
+          });
+        }
       }
       if (o.paymentStatus === "PAID") {
         await creditUserWallet(

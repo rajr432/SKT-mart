@@ -138,12 +138,19 @@ router.post("/login", async (req, res, next) => {
 // Flow:
 //   1) POST /forgot-password  { identifier }
 //      → always returns 200 (don't leak which emails exist). If a user
-//        with that email/phone exists, a one-time 64-hex token is generated,
-//        stored on the user (hashed isn't necessary since we check via
-//        unique lookup + short TTL), and an email link is sent.
+//        with that email/phone exists, a random 64-hex token is emailed,
+//        but only its SHA-256 hash is persisted — defence-in-depth against
+//        DB-leak account takeover (attacker with a dump still cannot
+//        construct the plaintext token the `/reset-password` lookup
+//        requires).
 //   2) GET  /reset-password/:token/valid  → 200 if still valid, 410 otherwise
 //   3) POST /reset-password  { token, password }
-//      → validates token + expiry, sets new password hash, clears token.
+//      → hashes incoming token, validates hash + expiry, sets new password
+//        hash, clears token columns.
+
+function hashResetToken(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
 
 router.post("/forgot-password", async (req, res, next) => {
   try {
@@ -159,7 +166,7 @@ router.post("/forgot-password", async (req, res, next) => {
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          passwordResetToken: token,
+          passwordResetToken: hashResetToken(token),
           passwordResetExpires: expires,
         },
       });
@@ -202,7 +209,7 @@ router.get("/reset-password/:token/valid", async (req, res, next) => {
   try {
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: req.params.token,
+        passwordResetToken: hashResetToken(req.params.token),
         passwordResetExpires: { gt: new Date() },
       },
       select: { id: true, email: true },
@@ -221,7 +228,7 @@ router.post("/reset-password", async (req, res, next) => {
       .parse(req.body);
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: token,
+        passwordResetToken: hashResetToken(token),
         passwordResetExpires: { gt: new Date() },
       },
     });
