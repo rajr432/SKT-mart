@@ -308,7 +308,21 @@ router.patch("/orders/:id/status", async (req, res, next) => {
         ]),
       })
       .parse(req.body);
-    const order = await prisma.order.update({ where: { id: req.params.id }, data: { status } });
+    // Guard the SOURCE status too — an admin must not be able to flip a
+    // CANCELLED order (already refunded + restocked) or RETURNED order back
+    // to a fulfilment state, which would leave inventory double-deducted and
+    // the customer holding a refund for an order marked DELIVERED.
+    const claim = await prisma.order.updateMany({
+      where: { id: req.params.id, status: { notIn: ["CANCELLED", "RETURNED"] } },
+      data: { status },
+    });
+    if (claim.count === 0) {
+      res
+        .status(400)
+        .json({ error: "Order is in a terminal state (cancelled/returned) and cannot be updated" });
+      return;
+    }
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: req.params.id } });
     await audit(req.user!.sub, "ORDER_STATUS_CHANGED", "Order", req.params.id, { status });
     res.json({ order });
   } catch (e) {
