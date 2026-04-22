@@ -168,6 +168,22 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
           tx,
         );
       }
+      // Restock on physical receipt — RECEIVED is the single point where goods
+      // are confirmed back in the warehouse. Without this, every successful
+      // return permanently shrinks inventory (cancel flow restocks in
+      // orders.ts:563-569; returns must mirror that). REFUNDED/REPLACED are
+      // financial settlements only and must NOT restock (that would
+      // double-count with RECEIVED). The `status !== r.status` claim above
+      // guarantees RECEIVED is entered at most once per Return, so the loop
+      // runs at most once.
+      if (status === "RECEIVED") {
+        for (const it of r.items) {
+          await tx.product.update({
+            where: { id: it.productId },
+            data: { stock: { increment: it.quantity } },
+          });
+        }
+      }
       return tx.return.findUniqueOrThrow({ where: { id: r.id } });
     });
 

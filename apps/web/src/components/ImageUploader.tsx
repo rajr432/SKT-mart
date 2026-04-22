@@ -21,7 +21,7 @@ interface Props {
 
 /**
  * Unified image input. User can paste a URL OR pick a file from their gallery
- * which uploads to `/api/uploads` and fills the same field.
+ * which uploads to `/api/upload` and fills the same field.
  */
 export default function ImageUploader({
   value,
@@ -46,7 +46,7 @@ export default function ImageUploader({
     try {
       const fd = new FormData();
       fd.append("files", file);
-      const r = await api<{ urls: string[] }>("/api/uploads", {
+      const r = await api<{ urls: string[] }>("/api/upload", {
         token: token ?? undefined,
         method: "POST",
         body: fd,

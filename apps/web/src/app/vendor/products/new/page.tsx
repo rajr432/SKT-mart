@@ -48,7 +48,7 @@ export default function NewProductPage() {
     try {
       const fd = new FormData();
       Array.from(files).forEach((f) => fd.append("files", f));
-      const r = await api<{ urls: string[] }>("/api/uploads", {
+      const r = await api<{ urls: string[] }>("/api/upload", {
         token: token ?? undefined,
         method: "POST",
         body: fd,
