@@ -48,12 +48,12 @@ app.use(
     // the hardcoded allowlist instead of `[]` (which would block every
     // browser origin and silently brick the API).
     origin:
-      (process.env.CORS_ORIGIN ?? process.env.CLIENT_ORIGIN)
+      (process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN)
         ?.split(",")
         .map((s) => s.trim())
         .filter(Boolean)
         .length
-        ? (process.env.CORS_ORIGIN ?? process.env.CLIENT_ORIGIN)!
+        ? (process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN)!
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean)
