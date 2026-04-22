@@ -33,9 +33,21 @@ router.get("/stats", async (_req, res, next) => {
   }
 });
 
-router.get("/users", async (_req, res, next) => {
+router.get("/users", async (req, res, next) => {
   try {
+    const q = (req.query.q as string | undefined)?.trim();
+    const role = req.query.role as string | undefined;
+    const where: Record<string, unknown> = {};
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q } },
+      ];
+    }
+    if (role && ["CUSTOMER", "VENDOR", "ADMIN"].includes(role)) where.role = role;
     const users = await prisma.user.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -43,9 +55,15 @@ router.get("/users", async (_req, res, next) => {
         email: true,
         phone: true,
         role: true,
+        walletBalance: true,
+        loyaltyPoints: true,
+        emailVerified: true,
+        phoneVerified: true,
         createdAt: true,
         vendor: { select: { storeName: true, status: true } },
+        _count: { select: { orders: true, addresses: true, reviews: true } },
       },
+      take: 500,
     });
     res.json({ items: users });
   } catch (e) {
@@ -53,13 +71,162 @@ router.get("/users", async (_req, res, next) => {
   }
 });
 
-router.get("/vendors", async (_req, res, next) => {
+router.get("/users/:id", async (req, res, next) => {
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        addresses: { orderBy: { createdAt: "desc" } },
+        vendor: true,
+        orders: {
+          orderBy: { placedAt: "desc" },
+          take: 50,
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            total: true,
+            paymentStatus: true,
+            paymentMethod: true,
+            placedAt: true,
+          },
+        },
+        notifications: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: { id: true, type: true, title: true, createdAt: true, read: true },
+        },
+        _count: { select: { orders: true, reviews: true, returns: true } },
+      },
+    });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const [walletTxns, totalSpent] = await Promise.all([
+      prisma.walletTransaction.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+      prisma.order.aggregate({
+        where: { userId: user.id, paymentStatus: "PAID" },
+        _sum: { total: true },
+      }),
+    ]);
+    res.json({
+      user: { ...user, password: undefined },
+      walletTxns,
+      totalSpent: totalSpent._sum.total ?? 0,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/vendors", async (req, res, next) => {
+  try {
+    const q = (req.query.q as string | undefined)?.trim();
+    const status = req.query.status as string | undefined;
+    const where: Record<string, unknown> = {};
+    if (q) {
+      where.OR = [
+        { storeName: { contains: q, mode: "insensitive" } },
+        { slug: { contains: q, mode: "insensitive" } },
+        { user: { name: { contains: q, mode: "insensitive" } } },
+        { user: { email: { contains: q, mode: "insensitive" } } },
+        { user: { phone: { contains: q } } },
+      ];
+    }
+    if (status && ["PENDING", "APPROVED", "SUSPENDED", "REJECTED"].includes(status))
+      where.status = status;
     const vendors = await prisma.vendor.findMany({
+      where,
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true, email: true, phone: true } } },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, phone: true, createdAt: true },
+        },
+        _count: { select: { products: true, orderItems: true } },
+      },
+      take: 500,
     });
     res.json({ items: vendors });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/vendors/:id", async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: req.params.id },
+      include: {
+        user: true,
+        products: {
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            stock: true,
+            published: true,
+            views: true,
+            createdAt: true,
+          },
+        },
+        _count: { select: { products: true, orderItems: true } },
+      },
+    });
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+    const [earnings, delivered, payouts] = await Promise.all([
+      prisma.orderItem.aggregate({
+        where: { vendorId: vendor.id, status: "DELIVERED" },
+        _sum: { vendorEarn: true, price: true },
+        _count: true,
+      }),
+      prisma.orderItem.aggregate({
+        where: { vendorId: vendor.id, status: "DELIVERED" },
+        _sum: { quantity: true },
+      }),
+      prisma.payout.findMany({
+        where: { vendorId: vendor.id },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+    ]);
+    res.json({
+      vendor: { ...vendor, user: { ...vendor.user, password: undefined } },
+      stats: {
+        deliveredItems: earnings._count,
+        unitsSold: delivered._sum.quantity ?? 0,
+        grossRevenue: earnings._sum.price ?? 0,
+        netEarnings: earnings._sum.vendorEarn ?? 0,
+      },
+      payouts,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch("/users/:id/role", async (req, res, next) => {
+  try {
+    const { role } = z
+      .object({ role: z.enum(["CUSTOMER", "VENDOR", "ADMIN"]) })
+      .parse(req.body);
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { role },
+      select: { id: true, role: true },
+    });
+    await audit(
+      (req as unknown as { user?: { id?: string } }).user?.id ?? null,
+      "USER_ROLE_CHANGED",
+      "User",
+      req.params.id,
+      { role },
+    );
+    res.json({ user });
   } catch (e) {
     next(e);
   }
