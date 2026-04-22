@@ -41,6 +41,17 @@ import shiprocketRouter from "./routes/shiprocket";
 
 const app = express();
 
+// Fly.io / Render / Vercel front us with a single reverse proxy. Without
+// `trust proxy`, `req.ip` returns the proxy's internal IP for every
+// request, collapsing every per-IP bucket (global API limiter at /api,
+// per-(IP,campaign) ad impression/click limiters in routes/ads.ts, etc.)
+// into a single shared bucket — trivially exhausted by legitimate traffic
+// or an attacker. Trusting a single hop is the right setting here: the
+// cloud provider strips client-forged X-Forwarded-For before the proxy
+// appends the real client IP, so express-rate-limit sees the real IP and
+// refuses to run unless trust proxy is explicitly configured anyway.
+app.set("trust proxy", 1);
+
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({

@@ -42,7 +42,12 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
   const points =
     Math.floor(order.total / 10000) * settings.loyaltyEarnPer100;
 
-  await prisma.$transaction(async (tx) => {
+  // Capture referrer info for post-commit notification. We can't call
+  // notify() inside the tx — it uses the global prisma client so its
+  // Notification row + email would persist even if the enclosing tx
+  // rolls back, leaving the user with a "bonus credited" email for a
+  // bonus that never actually credited.
+  const notifyPayload = await prisma.$transaction(async (tx) => {
     // ---- Loyalty (DB-level idempotent via @@unique) ----
     if (points > 0) {
       try {
@@ -100,18 +105,25 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
           },
           tx,
         );
-        // Notify outside the tx proper — notify() uses its own prisma calls
-        // and can retry/error without rolling back the credit.
-        void notify(
-          u.referredById,
-          "WALLET",
-          "Referral bonus credited!",
-          `\u20B9${(settings.referralBonusPaise / 100).toFixed(0)} added to your wallet.`,
-          "/account",
-        );
+        return {
+          referrerId: u.referredById,
+          amountPaise: settings.referralBonusPaise,
+        };
       }
     }
+    return null;
   });
+
+  // Fire notification only after the tx has committed successfully.
+  if (notifyPayload) {
+    void notify(
+      notifyPayload.referrerId,
+      "WALLET",
+      "Referral bonus credited!",
+      `\u20B9${(notifyPayload.amountPaise / 100).toFixed(0)} added to your wallet.`,
+      "/account",
+    );
+  }
 }
 
 // Reverse both the loyalty award and the referral bonus for an order. Called
