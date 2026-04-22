@@ -37,6 +37,7 @@ import alertsRouter from "./routes/alerts";
 import recentlyRouter from "./routes/recently";
 import compareRouter from "./routes/compare";
 import pushRouter from "./routes/push";
+import shiprocketRouter from "./routes/shiprocket";
 
 const app = express();
 
@@ -59,7 +60,15 @@ app.use(
         : [
             "https://sktmart.online",
             "https://www.sktmart.online",
+            "https://sktmartstore.in",
+            "https://www.sktmartstore.in",
             "https://sktmart.vercel.app",
+            "https://skt-mart.vercel.app",
+            "https://sktmart-online.vercel.app",
+            "https://sktmart-shop.vercel.app",
+            "https://sktmart-store.vercel.app",
+            "https://shopsktmart.vercel.app",
+            "https://sktmart-in.vercel.app",
             "https://web-ra-ram.vercel.app",
             "http://localhost:3000",
           ],
@@ -164,6 +173,7 @@ app.use("/api/alerts", alertsRouter);
 app.use("/api/recently-viewed", recentlyRouter);
 app.use("/api/compare", compareRouter);
 app.use("/api/push", pushRouter);
+app.use("/api/shiprocket", shiprocketRouter);
 
 // Sitemap & robots
 app.get("/sitemap.xml", async (_req, res, next) => {

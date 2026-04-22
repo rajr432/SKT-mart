@@ -25,6 +25,7 @@ function LoginForm() {
   const [mode, setMode] = useState<"password" | "otp">("password");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -110,14 +111,24 @@ function LoginForm() {
           />
 
           {mode === "password" && (
-            <input
-              className="input"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <input
+                className="input pr-10"
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 text-sm select-none"
+                tabIndex={-1}
+              >
+                {showPassword ? "🙈" : "👁"}
+              </button>
+            </div>
           )}
           {mode === "otp" && sent && (
             <input
@@ -135,6 +146,14 @@ function LoginForm() {
           )}
 
           {err && <p className="text-red-600 text-sm">{err}</p>}
+
+          {mode === "password" && (
+            <div className="text-right -mt-2">
+              <Link href="/forgot-password" className="text-xs text-brand hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           <button disabled={loading} className="btn-yellow w-full">
             {loading

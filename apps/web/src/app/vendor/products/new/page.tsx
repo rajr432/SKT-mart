@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { api } from "@/lib/api";
@@ -9,6 +9,7 @@ import type { Category } from "@/lib/types";
 export default function NewProductPage() {
   const { token } = useAuth();
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState({
     name: "",
@@ -21,14 +22,49 @@ export default function NewProductPage() {
     stock: 0,
     fAssured: false,
     categoryId: "",
-    images: "",
   });
+  const [images, setImages] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     api<{ items: Category[] }>("/api/categories").then((r) => setCategories(r.items));
   }, []);
+
+  const addUrl = () => {
+    const url = urlInput.trim();
+    if (url && !images.includes(url)) {
+      setImages([...images, url]);
+      setUrlInput("");
+    }
+  };
+
+  const uploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      Array.from(files).forEach((f) => fd.append("files", f));
+      const r = await api<{ urls: string[] }>("/api/uploads", {
+        token: token ?? undefined,
+        method: "POST",
+        body: fd,
+      });
+      setImages((prev) => [...prev, ...r.urls]);
+    } catch (e) {
+      setErr((e as Error).message || "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const removeImage = (idx: number) => {
+    setImages(images.filter((_, i) => i !== idx));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +73,7 @@ export default function NewProductPage() {
     try {
       const payload = {
         ...form,
-        images: form.images.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
+        images,
         mrp: Number(form.mrp),
         price: Number(form.price),
         stock: Number(form.stock),
@@ -145,13 +181,88 @@ export default function NewProductPage() {
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           required
         />
-        <textarea
-          className="input md:col-span-2"
-          placeholder="Image URLs (one per line or comma-separated)"
-          rows={3}
-          value={form.images}
-          onChange={(e) => setForm({ ...form, images: e.target.value })}
-        />
+
+        {/* ===== Product Images: URL + Gallery Upload ===== */}
+        <div className="md:col-span-2 space-y-3">
+          <label className="font-medium text-sm">
+            Product images ({images.length})
+          </label>
+
+          {/* URL input */}
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              placeholder="Paste image URL and click Add"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addUrl();
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={addUrl}
+              className="px-3 py-2 rounded border text-sm bg-white hover:bg-gray-50"
+            >
+              + Add URL
+            </button>
+          </div>
+
+          {/* Gallery upload */}
+          <div className="flex gap-2 items-center">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="px-4 py-2 rounded border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              {uploading ? "Uploading…" : "📷 Upload from gallery"}
+            </button>
+            <span className="text-xs text-gray-500">
+              Select multiple images at once (max 8)
+            </span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={uploadFiles}
+            />
+          </div>
+
+          {/* Image previews */}
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {images.map((url, i) => (
+                <div key={i} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Product ${i + 1}`}
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    x
+                  </button>
+                  {i === 0 && (
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5">
+                      Main
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {err && <p className="text-red-600 text-sm md:col-span-2">{err}</p>}
         <button className="btn-yellow md:col-span-2" disabled={loading}>
           {loading ? "…" : "Create Product"}

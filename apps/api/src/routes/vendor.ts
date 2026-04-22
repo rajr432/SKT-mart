@@ -453,6 +453,18 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
       OUT_FOR_DELIVERY: 4,
       DELIVERED: 5,
     };
+    // Forward-only transition: a vendor must not regress an item backward
+    // (e.g. SHIPPED → CONFIRMED) since that would cascade into Order.status
+    // regression via the min-rank aggregate below, confuse the customer
+    // tracker, and re-open an already-shipped order to cancellation.
+    const currentRank = STATUS_RANK[orderItem.status] ?? -1;
+    const nextRank = STATUS_RANK[status];
+    if (nextRank <= currentRank) {
+      throw new HttpError(
+        400,
+        `Cannot move item from ${orderItem.status} to ${status} (forward-only)`,
+      );
+    }
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.orderItem.update({
         where: { id: orderItem.id },

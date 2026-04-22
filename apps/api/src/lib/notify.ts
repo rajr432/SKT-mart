@@ -31,7 +31,7 @@ function getTransporter(): Transporter | null {
   return cachedTransporter;
 }
 
-async function sendEmail(to: string, subject: string, html: string) {
+export async function sendEmail(to: string, subject: string, html: string) {
   const t = getTransporter();
   if (!t) {
     // eslint-disable-next-line no-console

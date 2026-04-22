@@ -628,6 +628,24 @@ router.post("/brands", async (req, res, next) => {
   }
 });
 
+router.patch("/brands/:id", async (req, res, next) => {
+  try {
+    const data = z
+      .object({
+        name: z.string().min(2).optional(),
+        slug: z.string().min(2).optional(),
+        logo: z.string().nullable().optional(),
+        featured: z.boolean().optional(),
+      })
+      .parse(req.body);
+    const b = await prisma.brand.update({ where: { id: req.params.id }, data });
+    await audit(req.user!.sub, "BRAND_UPDATE", "Brand", b.id, data);
+    res.json({ brand: b });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.delete("/brands/:id", async (req, res, next) => {
   try {
     await prisma.brand.delete({ where: { id: req.params.id } });

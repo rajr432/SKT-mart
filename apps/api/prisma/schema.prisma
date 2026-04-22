@@ -105,6 +105,9 @@ enum PaymentMethod {
   CARD
   NETBANKING
   WALLET
+  COD // Legacy value: retained so PostgreSQL enum drop doesn't fail on
+  //        existing orders. We no longer offer COD at checkout, but rows may
+  //        still reference this value historically.
 }
 
 // ========== USERS ==========
@@ -119,6 +122,8 @@ model User {
   emailVerified Boolean  @default(false)
   phoneVerified Boolean  @default(false)
   avatar        String?
+  passwordResetToken   String?  @unique
+  passwordResetExpires DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -495,6 +500,8 @@ model Order {
   paymentMethod PaymentMethod @default(RAZORPAY)
   couponCode    String?
   notes         String?
+  shiprocketOrderId    Int?
+  shiprocketShipmentId Int?
   placedAt      DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -903,6 +910,7 @@ model Brand {
   slug      String   @unique
   logo      String?
   active    Boolean  @default(true)
+  featured  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
 
