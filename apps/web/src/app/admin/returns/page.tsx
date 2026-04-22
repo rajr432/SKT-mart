@@ -82,11 +82,27 @@ export default function AdminReturnsPage() {
                   )}
                   {r.status === "PICKED_UP" && (
                     <button
-                      onClick={() => transition(r.id, "REFUNDED")}
+                      onClick={() => transition(r.id, "RECEIVED")}
                       className="text-xs text-blue-600 hover:underline"
                     >
-                      Refund
+                      Mark Received
                     </button>
+                  )}
+                  {r.status === "RECEIVED" && (
+                    <>
+                      <button
+                        onClick={() => transition(r.id, "REFUNDED")}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Refund
+                      </button>
+                      <button
+                        onClick={() => transition(r.id, "REPLACED")}
+                        className="text-xs text-purple-600 hover:underline"
+                      >
+                        Mark Replaced
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>

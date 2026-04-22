@@ -245,20 +245,31 @@ router.post("/", requireAuth, async (req, res, next) => {
       // so ₹100 = 10000 paise. settings.loyaltyEarnPer100 is coins earned per ₹100.
       const points = Math.floor(breakup.total / 10000) * settings.loyaltyEarnPer100;
       if (points > 0) {
-        const updated = await prisma.user.update({
-          where: { id: userId },
-          data: { loyaltyPoints: { increment: points } },
-          select: { loyaltyPoints: true },
+        // Skip award if the order was cancelled in the narrow window between
+        // the tx commit and this callback — otherwise the cancel flow's
+        // clawback below would find no ORDER_EARN row and the user would keep
+        // the points for free. Atomic-enough since cancel flips status under
+        // its own row-level CAS; we just re-read here.
+        const fresh = await prisma.order.findUnique({
+          where: { id: order.id },
+          select: { status: true },
         });
-        await prisma.loyaltyTransaction.create({
-          data: {
-            userId,
-            points,
-            reason: "ORDER_EARN",
-            ref: order.id,
-            balanceAfter: updated.loyaltyPoints,
-          },
-        });
+        if (fresh && !["CANCELLED", "RETURNED"].includes(fresh.status)) {
+          const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { loyaltyPoints: { increment: points } },
+            select: { loyaltyPoints: true },
+          });
+          await prisma.loyaltyTransaction.create({
+            data: {
+              userId,
+              points,
+              reason: "ORDER_EARN",
+              ref: order.id,
+              balanceAfter: updated.loyaltyPoints,
+            },
+          });
+        }
       }
 
       // Referral bonus on first order
@@ -581,6 +592,30 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           `UPDATE "Coupon" SET "usedCount" = "usedCount" - 1 WHERE code = $1 AND "usedCount" > 0`,
           o.couponCode,
         );
+      }
+      // Clawback loyalty points awarded at order placement. Without this, a
+      // user could place → cancel in a loop and farm free points (they're
+      // spendable at checkout like real money). Guarded by findFirst so we
+      // never double-clawback if this cancel path is reached twice.
+      const earned = await tx.loyaltyTransaction.findFirst({
+        where: { userId: o.userId, ref: o.id, reason: "ORDER_EARN" },
+        select: { points: true },
+      });
+      if (earned && earned.points > 0) {
+        const userAfter = await tx.user.update({
+          where: { id: o.userId },
+          data: { loyaltyPoints: { decrement: earned.points } },
+          select: { loyaltyPoints: true },
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: o.userId,
+            points: -earned.points,
+            reason: "ORDER_CANCEL",
+            ref: o.id,
+            balanceAfter: userAfter.loyaltyPoints,
+          },
+        });
       }
       // Read `paymentStatus` from the tx-fresh row (`o`), NOT the outer
       // `order` — a concurrent Razorpay webhook could have flipped
