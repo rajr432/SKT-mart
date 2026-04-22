@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { getRazorpay, verifyRazorpaySignature } from "../lib/razorpay";
+import { awardOrderRewards } from "../lib/rewards";
 import { HttpError } from "../middleware/error";
 
 const router = Router();
@@ -91,6 +92,18 @@ router.post("/razorpay/verify", requireAuth, async (req, res, next) => {
         "Order is already cancelled or finalised — payment cannot be applied. Contact support for a refund.",
       );
     }
+
+    // Award loyalty points + first-order referral bonus now that the order
+    // is actually PAID. Non-WALLET orders are PENDING at placement time, so
+    // orders.ts cannot run these safely from its post-commit block (doing
+    // so would credit points and real wallet money for abandoned Razorpay
+    // checkouts). The helper is idempotent via ORDER_EARN / REFERRAL rows
+    // keyed on orderId, so a duplicate `/razorpay/verify` call is a no-op
+    // here too. Errors are logged-and-swallowed — a committed PAID order
+    // must not turn into a 500 that prompts the client to retry payment.
+    void awardOrderRewards(orderId).catch((err: unknown) => {
+      console.error("[rewards] razorpay verify:", err);
+    });
 
     res.json({ ok: true });
   } catch (e) {

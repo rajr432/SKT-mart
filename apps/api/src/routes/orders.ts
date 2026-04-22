@@ -8,6 +8,7 @@ import { generateOrderNumber } from "../lib/order";
 import { computeCommission } from "../lib/commission";
 import { notify } from "../lib/notify";
 import { creditUserWallet, debitUserWallet } from "../lib/wallet";
+import { awardOrderRewards, clawbackOrderRewards } from "../lib/rewards";
 import { getSettings } from "../lib/settings";
 import { sendWhatsApp } from "../lib/whatsapp";
 import { sendPushToUser } from "../lib/push";
@@ -240,58 +241,14 @@ router.post("/", requireAuth, async (req, res, next) => {
 
     // Post-commit side-effects. Errors are logged but never re-thrown.
     try {
-      const settings = await getSettings();
-      // Award loyalty points (1 coin per ₹100 spent). breakup.total is in paise,
-      // so ₹100 = 10000 paise. settings.loyaltyEarnPer100 is coins earned per ₹100.
-      const points = Math.floor(breakup.total / 10000) * settings.loyaltyEarnPer100;
-      if (points > 0) {
-        // Skip award if the order was cancelled in the narrow window between
-        // the tx commit and this callback — otherwise the cancel flow's
-        // clawback below would find no ORDER_EARN row and the user would keep
-        // the points for free. Atomic-enough since cancel flips status under
-        // its own row-level CAS; we just re-read here.
-        const fresh = await prisma.order.findUnique({
-          where: { id: order.id },
-          select: { status: true },
-        });
-        if (fresh && !["CANCELLED", "RETURNED"].includes(fresh.status)) {
-          const updated = await prisma.user.update({
-            where: { id: userId },
-            data: { loyaltyPoints: { increment: points } },
-            select: { loyaltyPoints: true },
-          });
-          await prisma.loyaltyTransaction.create({
-            data: {
-              userId,
-              points,
-              reason: "ORDER_EARN",
-              ref: order.id,
-              balanceAfter: updated.loyaltyPoints,
-            },
-          });
-        }
-      }
-
-      // Referral bonus on first order
-      const userOrderCount = await prisma.order.count({ where: { userId } });
-      if (userOrderCount === 1) {
-        const u = await prisma.user.findUnique({ where: { id: userId } });
-        if (u?.referredById) {
-          await creditUserWallet(u.referredById, {
-            amountPaise: settings.referralBonusPaise,
-            reason: "REFERRAL",
-            ref: order.id,
-            note: `Referral bonus from ${u.name}`,
-          });
-          await notify(
-            u.referredById,
-            "WALLET",
-            "Referral bonus credited!",
-            `\u20B9${(settings.referralBonusPaise / 100).toFixed(0)} added to your wallet.`,
-            "/account",
-          );
-        }
-      }
+      // Loyalty + referral are gated on paymentStatus='PAID' inside the
+      // helper. WALLET orders are PAID atomically at creation, so the
+      // awards run here. Razorpay/UPI orders stay PENDING at this point;
+      // their awards are triggered from payments.ts after a successful
+      // /razorpay/verify flips them to PAID. The helper is idempotent
+      // (ORDER_EARN + REFERRAL rows are keyed on orderId) so there's no
+      // risk of double-credit if both paths race.
+      await awardOrderRewards(order.id);
 
       await notify(
         userId,
@@ -596,41 +553,13 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           o.couponCode,
         );
       }
-      // Clawback loyalty points awarded at order placement. Without this, a
-      // user could place → cancel in a loop and farm free points (they're
-      // spendable at checkout like real money). Guarded by findFirst so we
-      // never double-clawback if this cancel path is reached twice. Clamp
-      // the decrement to the current balance — between ORDER_EARN and
-      // cancel the user may have already redeemed some/all of those points
-      // elsewhere; clawing back the full earn unconditionally would drive
-      // loyaltyPoints negative and corrupt downstream balance checks.
-      const earned = await tx.loyaltyTransaction.findFirst({
-        where: { userId: o.userId, ref: o.id, reason: "ORDER_EARN" },
-        select: { points: true },
-      });
-      if (earned && earned.points > 0) {
-        const current = await tx.user.findUniqueOrThrow({
-          where: { id: o.userId },
-          select: { loyaltyPoints: true },
-        });
-        const clawback = Math.min(earned.points, current.loyaltyPoints);
-        if (clawback > 0) {
-          const userAfter = await tx.user.update({
-            where: { id: o.userId },
-            data: { loyaltyPoints: { decrement: clawback } },
-            select: { loyaltyPoints: true },
-          });
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: o.userId,
-              points: -clawback,
-              reason: "ORDER_CANCEL",
-              ref: o.id,
-              balanceAfter: userAfter.loyaltyPoints,
-            },
-          });
-        }
-      }
+      // Clawback loyalty points + referral bonus awarded at order placement
+      // (or at Razorpay verification for UPI orders). Both reversals are
+      // idempotent and clamped to the current balance, so concurrent
+      // redemption/spend between award and cancel cannot drive balances
+      // negative. Referral clawback is the newer half — without it a
+      // referrer kept the ₹bonus on a cancelled first order.
+      await clawbackOrderRewards(tx, o.id);
       // Read `paymentStatus` from the tx-fresh row (`o`), NOT the outer
       // `order` — a concurrent Razorpay webhook could have flipped
       // PENDING→PAID between the outer find and this tx, and skipping

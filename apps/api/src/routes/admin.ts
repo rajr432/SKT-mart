@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { audit } from "../lib/audit";
 import { creditUserWallet } from "../lib/wallet";
+import { clawbackOrderRewards } from "../lib/rewards";
 import { HttpError } from "../middleware/error";
 
 const router = Router();
@@ -405,37 +406,11 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
           o.couponCode,
         );
       }
-      // Clawback loyalty points awarded at placement — mirrors the customer
-      // cancel flow in orders.ts. Clamped to current balance so partial
-      // redemption between earn and cancel doesn't drive loyaltyPoints
-      // negative.
-      const earned = await tx.loyaltyTransaction.findFirst({
-        where: { userId: o.userId, ref: o.id, reason: "ORDER_EARN" },
-        select: { points: true },
-      });
-      if (earned && earned.points > 0) {
-        const current = await tx.user.findUniqueOrThrow({
-          where: { id: o.userId },
-          select: { loyaltyPoints: true },
-        });
-        const clawback = Math.min(earned.points, current.loyaltyPoints);
-        if (clawback > 0) {
-          const userAfter = await tx.user.update({
-            where: { id: o.userId },
-            data: { loyaltyPoints: { decrement: clawback } },
-            select: { loyaltyPoints: true },
-          });
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: o.userId,
-              points: -clawback,
-              reason: "ORDER_CANCEL",
-              ref: o.id,
-              balanceAfter: userAfter.loyaltyPoints,
-            },
-          });
-        }
-      }
+      // Clawback loyalty points + referral bonus awarded at placement /
+      // Razorpay verification — mirrors the customer cancel flow in
+      // orders.ts. Idempotent + clamped so partial redemption or spend
+      // between award and cancel does not drive balances negative.
+      await clawbackOrderRewards(tx, o.id);
       if (o.paymentStatus === "PAID") {
         await creditUserWallet(
           o.userId,
