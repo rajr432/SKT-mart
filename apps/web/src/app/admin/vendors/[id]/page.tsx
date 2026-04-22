@@ -231,7 +231,7 @@ export default function AdminVendorDetailPage() {
             label="Commission"
             value={
               vendor.commissionOverride != null
-                ? `${(vendor.commissionOverride * 100).toFixed(1)}% (override)`
+                ? `${vendor.commissionOverride.toFixed(1)}% (override)`
                 : "Platform default"
             }
           />
