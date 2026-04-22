@@ -50,10 +50,16 @@ interface OrderDetail {
   } | null;
 }
 
+// Forward-progress states only — CANCELLED and RETURNED go through dedicated
+// backend endpoints (POST /admin/orders/:id/cancel) that restock inventory,
+// release coupon slots, and refund the customer wallet. The PATCH status
+// route rejects those two zod values with a 400, so showing them here would
+// produce a silent failure.
 const STATUSES = [
   "PLACED", "CONFIRMED", "PACKED", "SHIPPED",
-  "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED",
+  "OUT_FOR_DELIVERY", "DELIVERED",
 ];
+const TERMINAL = new Set(["CANCELLED", "RETURNED"]);
 
 const statusColor: Record<string, string> = {
   PLACED: "bg-blue-100 text-blue-700",
@@ -91,12 +97,27 @@ export default function AdminOrderDetailPage() {
   }, [token, id]);
 
   const setStatus = async (status: string) => {
-    await api(`/api/admin/orders/${id}/status`, {
-      token,
-      method: "PATCH",
-      json: { status },
-    });
-    load();
+    try {
+      await api(`/api/admin/orders/${id}/status`, {
+        token,
+        method: "PATCH",
+        json: { status },
+      });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to update status");
+    }
+  };
+
+  const cancelOrder = async () => {
+    if (!confirm("Cancel this order? Stock will be restocked and paid amount refunded to the customer's wallet."))
+      return;
+    try {
+      await api(`/api/admin/orders/${id}/cancel`, { token, method: "POST" });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to cancel order");
+    }
   };
 
   if (loading) {
@@ -141,13 +162,22 @@ export default function AdminOrderDetailPage() {
           </span>
           <select
             className="input !w-auto !py-1 text-sm"
-            value={order.status}
+            value={TERMINAL.has(order.status) ? "" : order.status}
             onChange={(e) => setStatus(e.target.value)}
+            disabled={TERMINAL.has(order.status)}
           >
             {STATUSES.map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>
+          {!TERMINAL.has(order.status) && order.status !== "DELIVERED" && (
+            <button
+              onClick={cancelOrder}
+              className="text-xs px-3 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50"
+            >
+              Cancel order
+            </button>
+          )}
         </div>
       </div>
 

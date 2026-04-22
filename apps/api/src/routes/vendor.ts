@@ -294,6 +294,11 @@ router.use(async (req, _res, next) => {
       throw new HttpError(402, "Vendor registration fee not paid");
     if (vendor.status === "SUSPENDED")
       throw new HttpError(403, "Vendor account suspended");
+    // REJECTED vendors must lose operational access too — their paid flag stays
+    // true (no auto-refund on reject), so the registrationPaid check alone
+    // doesn't catch them. An admin's REJECT action would otherwise be a no-op.
+    if (vendor.status === "REJECTED")
+      throw new HttpError(403, "Vendor account rejected");
     next();
   } catch (e) {
     next(e);
