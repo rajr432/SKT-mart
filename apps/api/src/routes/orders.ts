@@ -16,7 +16,11 @@ const router = Router();
 
 const placeOrderSchema = z.object({
   addressId: z.string(),
-  paymentMethod: z.enum(["RAZORPAY", "UPI", "CARD", "NETBANKING", "WALLET"]).default("RAZORPAY"),
+  // CARD/NETBANKING route through Razorpay's unified checkout (the hosted
+  // page lets the customer pick card/netbanking/UPI inside it), so we don't
+  // expose them as distinct order-level methods — doing so would create
+  // orders that never transition to PAID (no collection flow on our side).
+  paymentMethod: z.enum(["RAZORPAY", "UPI", "WALLET"]).default("RAZORPAY"),
   couponCode: z.string().optional(),
   notes: z.string().optional(),
 });

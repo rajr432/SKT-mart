@@ -308,18 +308,56 @@ router.patch("/orders/:id/status", async (req, res, next) => {
         ]),
       })
       .parse(req.body);
-    // Guard the SOURCE status too — an admin must not be able to flip a
-    // CANCELLED order (already refunded + restocked) or RETURNED order back
-    // to a fulfilment state, which would leave inventory double-deducted and
-    // the customer holding a refund for an order marked DELIVERED.
+    // Enforce forward-only progression (matches the "Admin forward-progress
+    // status updates only" comment above and the vendor item-status flow in
+    // vendor.ts). Regressing DELIVERED → PLACED would desync Order.status vs
+    // OrderItem.status, break the customer tracker, and skew analytics.
+    // Terminal-state exclusion still applies — CANCELLED/RETURNED must go
+    // through POST /admin/orders/:id/cancel to run the refund+restock path.
+    const STATUS_RANK: Record<string, number> = {
+      PLACED: 0,
+      CONFIRMED: 1,
+      PACKED: 2,
+      SHIPPED: 3,
+      OUT_FOR_DELIVERY: 4,
+      DELIVERED: 5,
+    };
+    const existing = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      select: { status: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    if (["CANCELLED", "RETURNED"].includes(existing.status)) {
+      res
+        .status(400)
+        .json({ error: "Order is in a terminal state (cancelled/returned) and cannot be updated" });
+      return;
+    }
+    const currentRank = STATUS_RANK[existing.status] ?? -1;
+    const nextRank = STATUS_RANK[status];
+    if (nextRank <= currentRank) {
+      res.status(400).json({
+        error: `Cannot regress order from ${existing.status} to ${status}. Admin status is forward-only; use the cancel endpoint for terminal transitions.`,
+      });
+      return;
+    }
+    // Forward-only CAS: claim only rows whose current rank is strictly lower
+    // than the target. This closes the read-then-update race where two admins
+    // could concurrently advance an order through the same step.
+    const lowerStatuses = Object.entries(STATUS_RANK)
+      .filter(([, r]) => r < nextRank)
+      .map(([s]) => s);
     const claim = await prisma.order.updateMany({
-      where: { id: req.params.id, status: { notIn: ["CANCELLED", "RETURNED"] } },
+      where: { id: req.params.id, status: { in: lowerStatuses as never } },
       data: { status },
     });
     if (claim.count === 0) {
       res
-        .status(400)
-        .json({ error: "Order is in a terminal state (cancelled/returned) and cannot be updated" });
+        .status(409)
+        .json({ error: "Order status changed concurrently. Reload and try again." });
       return;
     }
     const order = await prisma.order.findUniqueOrThrow({ where: { id: req.params.id } });
@@ -602,7 +640,11 @@ router.post("/pincodes", async (req, res, next) => {
 
 router.get("/analytics", async (req, res, next) => {
   try {
-    const days = Math.min(Number(req.query.days ?? 30), 365);
+    // Sanitize: non-numeric query values (e.g. `?days=abc`) would produce
+    // NaN → Invalid Date → 500 from Prisma. Clamp to [1, 365] with a 30-day
+    // default so the endpoint is robust to malformed input.
+    const parsed = parseInt(String(req.query.days ?? 30), 10);
+    const days = Math.min(Math.max(1, Number.isFinite(parsed) ? parsed : 30), 365);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [orders, revenue, topProducts, topVendors, commissionSum] = await Promise.all([
