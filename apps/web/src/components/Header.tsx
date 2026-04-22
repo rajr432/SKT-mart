@@ -15,11 +15,42 @@ export default function Header() {
   const [suggestions, setSuggestions] = useState<
     Array<{ id: string; name: string; slug: string }>
   >([]);
+  const [recent, setRecent] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const router = useRouter();
   const timer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("skt_recent_searches");
+      if (raw) setRecent(JSON.parse(raw).slice(0, 6));
+    } catch {
+      /* */
+    }
+  }, []);
+
+  const saveRecent = (term: string) => {
+    try {
+      const raw = localStorage.getItem("skt_recent_searches");
+      const arr: string[] = raw ? JSON.parse(raw) : [];
+      const next = [term, ...arr.filter((t) => t !== term)].slice(0, 8);
+      localStorage.setItem("skt_recent_searches", JSON.stringify(next));
+      setRecent(next.slice(0, 6));
+    } catch {
+      /* */
+    }
+  };
+
+  const clearRecent = () => {
+    try {
+      localStorage.removeItem("skt_recent_searches");
+      setRecent([]);
+    } catch {
+      /* */
+    }
+  };
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -62,9 +93,11 @@ export default function Header() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!q.trim()) return;
+    const term = q.trim();
+    if (!term) return;
+    saveRecent(term);
     setOpen(false);
-    router.push(`/search?q=${encodeURIComponent(q.trim())}`);
+    router.push(`/search?q=${encodeURIComponent(term)}`);
   };
 
   return (
@@ -85,7 +118,7 @@ export default function Header() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onFocus={() => suggestions.length > 0 && setOpen(true)}
+            onFocus={() => (suggestions.length > 0 || recent.length > 0) && setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 120)}
             placeholder="Search for products, brands and more"
             className="w-full text-gray-900 text-sm rounded-sm px-3 py-2 pr-10 focus:outline-none"
@@ -100,18 +133,58 @@ export default function Header() {
               🔍
             </button>
           </div>
-          {open && suggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white text-gray-900 shadow-lg mt-1 z-50 max-h-72 overflow-auto">
-              {suggestions.map((s) => (
-                <Link
-                  key={s.id}
-                  href={`/product/${s.slug}`}
-                  className="block px-3 py-2 hover:bg-gray-100 text-sm"
-                  onClick={() => setOpen(false)}
-                >
-                  {s.name}
-                </Link>
-              ))}
+          {open && (suggestions.length > 0 || (q.trim().length < 2 && recent.length > 0)) && (
+            <div className="absolute top-full left-0 right-0 bg-white text-gray-900 shadow-lg mt-1 z-50 max-h-80 overflow-auto rounded-b-md">
+              {q.trim().length < 2 && recent.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between px-3 py-2 text-[11px] uppercase text-gray-500 bg-gray-50 border-b">
+                    <span>Recently searched</span>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={clearRecent}
+                      className="text-brand hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {recent.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        saveRecent(t);
+                        setOpen(false);
+                        router.push(`/search?q=${encodeURIComponent(t)}`);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 text-sm text-left"
+                    >
+                      <span className="text-gray-400">⏱️</span>
+                      <span className="flex-1">{t}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {suggestions.length > 0 && (
+                <div>
+                  {q.trim().length >= 2 && (
+                    <div className="px-3 py-1.5 text-[11px] uppercase text-gray-500 bg-gray-50 border-b">Products</div>
+                  )}
+                  {suggestions.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/product/${s.slug}`}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-sm"
+                      onMouseDown={() => saveRecent(s.name)}
+                      onClick={() => setOpen(false)}
+                    >
+                      <span className="text-gray-400">🔍</span>
+                      <span className="flex-1">{s.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </form>

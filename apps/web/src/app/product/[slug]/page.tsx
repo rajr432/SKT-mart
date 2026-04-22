@@ -10,6 +10,7 @@ import TrustBadges from "@/components/TrustBadges";
 import DeliveryEstimator from "@/components/DeliveryEstimator";
 import SizeGuideButton from "@/components/SizeGuideButton";
 import ProductAlerts from "@/components/ProductAlerts";
+import ImageZoomGallery from "@/components/ImageZoomGallery";
 
 export const dynamic = "force-dynamic";
 
@@ -22,28 +23,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
   );
 
   const off = discountPercent(product.mrp, product.price);
-  const main = product.images[0]?.url;
 
   return (
     <div className="container-page py-4 space-y-4">
       <div className="card p-4 grid md:grid-cols-[minmax(0,1fr)_1.5fr] gap-6">
         <div>
-          <div className="hero-3d">
-            <div className="tilt-card aspect-square bg-white border flex items-center justify-center overflow-hidden rounded-lg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {main && <img src={main} alt={product.name} className="max-h-full object-contain" />}
-            </div>
-          </div>
-          <div className="flex gap-2 mt-2 overflow-x-auto">
-            {product.images.map((im) => (
-              <img
-                key={im.id}
-                src={im.url}
-                alt={im.alt ?? ""}
-                className="h-16 w-16 object-cover border hover:border-brand cursor-pointer"
-              />
-            ))}
-          </div>
+          <ImageZoomGallery images={product.images} name={product.name} />
           <div className="mt-4">
             <ProductActions productId={product.id} inStock={product.stock > 0} />
           </div>

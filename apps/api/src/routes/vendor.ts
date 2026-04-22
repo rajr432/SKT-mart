@@ -549,6 +549,109 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
   }
 });
 
+router.get("/analytics", async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Vendor profile not found");
+
+    const days = 30;
+    const since = new Date(Date.now() - days * 86400_000);
+
+    const [items, recentOrders, topProducts, lowStock] = await Promise.all([
+      prisma.orderItem.findMany({
+        where: { vendorId: vendor.id, order: { placedAt: { gte: since } } },
+        select: {
+          price: true,
+          quantity: true,
+          vendorEarn: true,
+          productId: true,
+          order: { select: { placedAt: true } },
+        },
+      }),
+      prisma.orderItem.findMany({
+        where: { vendorId: vendor.id },
+        orderBy: { order: { placedAt: "desc" } },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          quantity: true,
+          status: true,
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              placedAt: true,
+              user: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      prisma.orderItem.groupBy({
+        by: ["productId", "name"],
+        where: { vendorId: vendor.id },
+        _sum: { quantity: true, price: true },
+        orderBy: { _sum: { quantity: "desc" } },
+        take: 5,
+      }),
+      prisma.product.findMany({
+        where: { vendorId: vendor.id, stock: { lte: 5 }, published: true },
+        select: { id: true, name: true, slug: true, stock: true, price: true },
+        take: 10,
+        orderBy: { stock: "asc" },
+      }),
+    ]);
+
+    // Daily revenue time-series (last 30 days, ISO date string buckets)
+    const bucket = new Map<string, { revenue: number; units: number; orders: number }>();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400_000);
+      const key = d.toISOString().slice(0, 10);
+      bucket.set(key, { revenue: 0, units: 0, orders: 0 });
+    }
+    const orderSeen = new Set<string>();
+    for (const it of items) {
+      const key = it.order.placedAt.toISOString().slice(0, 10);
+      const b = bucket.get(key);
+      if (!b) continue;
+      b.revenue += it.price * it.quantity;
+      b.units += it.quantity;
+      const orderMarker = `${key}:${it.productId}`;
+      if (!orderSeen.has(orderMarker)) {
+        orderSeen.add(orderMarker);
+        b.orders += 1;
+      }
+    }
+    const series = Array.from(bucket.entries()).map(([date, v]) => ({ date, ...v }));
+
+    const totalRevenue = items.reduce((s, r) => s + r.price * r.quantity, 0);
+    const totalNet = items.reduce((s, r) => s + r.vendorEarn, 0);
+    const totalUnits = items.reduce((s, r) => s + r.quantity, 0);
+
+    res.json({
+      period: { days, since: since.toISOString() },
+      totals: {
+        revenue: totalRevenue,
+        netEarnings: totalNet,
+        units: totalUnits,
+        orders: items.length,
+      },
+      series,
+      recentOrders,
+      topProducts: topProducts.map((p) => ({
+        productId: p.productId,
+        name: p.name,
+        units: p._sum.quantity ?? 0,
+        revenue: p._sum.price ?? 0,
+      })),
+      lowStock,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/stats", async (req, res, next) => {
   try {
     const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
