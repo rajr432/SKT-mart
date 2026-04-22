@@ -33,7 +33,13 @@ COPY --from=builder /repo/apps/api/package.json ./package.json
 COPY --from=builder /repo/apps/api/dist ./dist
 COPY --from=builder /repo/apps/api/prisma ./prisma
 COPY --from=builder /repo/node_modules ./node_modules
-COPY --from=builder /repo/apps/api/node_modules ./apps/api/node_modules 2>/dev/null || true
+# Copy any workspace-local node_modules if they exist (npm workspaces usually
+# hoists to /repo/node_modules, but package-specific deps can land here).
+# Staged via intermediate dir so the COPY itself doesn't fail when empty.
+COPY --from=builder /repo/apps/api ./apps/api-src
+RUN if [ -d /app/apps/api-src/node_modules ]; then \
+      mkdir -p /app/apps/api && cp -r /app/apps/api-src/node_modules /app/apps/api/node_modules; \
+    fi && rm -rf /app/apps/api-src
 
 # Start script: run migrations then launch server
 RUN printf '#!/bin/sh\nset -e\nnpx prisma migrate deploy\nexec node dist/index.js\n' > /app/start.sh && chmod +x /app/start.sh
