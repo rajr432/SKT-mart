@@ -435,11 +435,29 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
     const orderItem = await prisma.orderItem.findUnique({
       where: { id: req.params.orderItemId },
       include: {
-        order: { select: { id: true, userId: true, user: { select: { phone: true } } } },
+        order: {
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            user: { select: { phone: true } },
+          },
+        },
       },
     });
     if (!orderItem || orderItem.vendorId !== vendor.id)
       throw new HttpError(404, "Order item not found");
+    // Guard against vendors advancing items on an order the admin/customer
+    // already terminated. Without this, a vendor could push items through
+    // CONFIRMED→…→OUT_FOR_DELIVERY on a CANCELLED order (which has already
+    // been refunded + restocked), generating a deliveryOtp and potentially
+    // corrupting Order.status back to DELIVERED via verify-otp.
+    if (["CANCELLED", "RETURNED"].includes(orderItem.order.status)) {
+      throw new HttpError(
+        400,
+        `Cannot update items on a ${orderItem.order.status.toLowerCase()} order`,
+      );
+    }
     // Item update + aggregate Order.status propagation must be atomic.
     // Order.status is the minimum progression across non-CANCELLED items:
     // if every item is DELIVERED → Order=DELIVERED; if at least one is still
@@ -742,8 +760,12 @@ router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
         },
       });
       if (remaining === 0) {
-        await tx.order.update({
-          where: { id: order.id },
+        // Guard via updateMany with terminal-state exclusion — if the order
+        // was cancelled/returned between OTP issuance and delivery verify,
+        // we must NOT flip it back to DELIVERED (customer has been refunded).
+        // The OTP is still cleared via the where-matched row only.
+        await tx.order.updateMany({
+          where: { id: order.id, status: { notIn: ["CANCELLED", "RETURNED"] } },
           data: { status: "DELIVERED", deliveryOtp: null },
         });
       }
