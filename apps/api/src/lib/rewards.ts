@@ -10,12 +10,18 @@ import { notify } from "./notify";
 // Razorpay/UPI checkouts turn into free points + real wallet credits for the
 // referrer.
 //
-// Idempotency:
-//   - loyalty: guarded by findFirst on LoyaltyTransaction(ref=orderId, reason=ORDER_EARN)
-//   - referral: guarded by findFirst on WalletTransaction(ref=orderId, reason=REFERRAL)
-// Re-running `awardOrderRewards` on the same order is a no-op past the first
-// successful call, so it's safe to invoke from both the WALLET post-commit
-// path and the Razorpay verify path without worrying about double-credit.
+// Idempotency is enforced at the database level, not just with findFirst
+// check-then-act:
+//   - loyalty:  LoyaltyTransaction has @@unique([userId, ref, reason]) — a
+//               second concurrent insert raises P2002, which we catch and
+//               treat as already-awarded (no second balance increment).
+//   - referral: User.referralBonusClaimed is flipped via updateMany CAS
+//               (`referralBonusClaimed: false`) — only one concurrent award
+//               call wins the claim; the others see count=0 and skip the
+//               wallet credit entirely.
+// Both are safe to invoke from the WALLET post-commit path AND the Razorpay
+// verify path AND from duplicate-verify retries, and still under read-
+// committed isolation.
 
 export async function awardOrderRewards(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({
@@ -29,66 +35,74 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
     },
   });
   if (!order) return;
-  // Gate on PAID + not-cancelled — caller may race with a cancel.
   if (order.paymentStatus !== "PAID") return;
   if (["CANCELLED", "RETURNED"].includes(order.status)) return;
 
   const settings = await getSettings();
-
-  // ---- Loyalty (idempotent) ----
   const points =
     Math.floor(order.total / 10000) * settings.loyaltyEarnPer100;
-  if (points > 0) {
-    const existing = await prisma.loyaltyTransaction.findFirst({
-      where: { userId: order.userId, ref: order.id, reason: "ORDER_EARN" },
-      select: { id: true },
-    });
-    if (!existing) {
-      const updated = await prisma.user.update({
-        where: { id: order.userId },
-        data: { loyaltyPoints: { increment: points } },
-        select: { loyaltyPoints: true },
-      });
-      await prisma.loyaltyTransaction.create({
-        data: {
-          userId: order.userId,
-          points,
-          reason: "ORDER_EARN",
-          ref: order.id,
-          balanceAfter: updated.loyaltyPoints,
-        },
-      });
-    }
-  }
 
-  // ---- Referral bonus on first PAID order (idempotent) ----
-  //
-  // `userOrderCount` counts PAID orders for this user, not all orders. An
-  // abandoned-then-retried Razorpay checkout (PENDING orders) must not
-  // suppress the bonus on the eventual first PAID order, and a user who has
-  // placed only CANCELLED orders earlier should still count their first PAID
-  // as "first".
-  const paidOrderCount = await prisma.order.count({
-    where: { userId: order.userId, paymentStatus: "PAID" },
-  });
-  if (paidOrderCount === 1) {
-    const existingRef = await prisma.walletTransaction.findFirst({
-      where: { ref: order.id, reason: "REFERRAL" },
-      select: { id: true },
+  await prisma.$transaction(async (tx) => {
+    // ---- Loyalty (DB-level idempotent via @@unique) ----
+    if (points > 0) {
+      try {
+        const updated = await tx.user.update({
+          where: { id: order.userId },
+          data: { loyaltyPoints: { increment: points } },
+          select: { loyaltyPoints: true },
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: order.userId,
+            points,
+            reason: "ORDER_EARN",
+            ref: order.id,
+            balanceAfter: updated.loyaltyPoints,
+          },
+        });
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        if (code !== "P2002") throw e; // only swallow unique violations
+        // Already awarded by a concurrent call — the tx rolls back the
+        // points increment above (both ops are in the same $transaction).
+        // Nothing else to do.
+      }
+    }
+
+    // ---- Referral bonus (CAS on User.referralBonusClaimed) ----
+    //
+    // Flip the flag atomically and only proceed if we actually won the
+    // claim. Two concurrent paid orders from the same user: only one
+    // updateMany returns count=1, the other returns 0 and skips the
+    // credit. Farming is separately blocked by the cancel clawback which
+    // reverses both the bonus and the flag.
+    const claim = await tx.user.updateMany({
+      where: {
+        id: order.userId,
+        referralBonusClaimed: false,
+        referredById: { not: null },
+      },
+      data: { referralBonusClaimed: true },
     });
-    if (!existingRef) {
-      const u = await prisma.user.findUnique({
+    if (claim.count === 1) {
+      const u = await tx.user.findUniqueOrThrow({
         where: { id: order.userId },
         select: { referredById: true, name: true },
       });
-      if (u?.referredById) {
-        await creditUserWallet(u.referredById, {
-          amountPaise: settings.referralBonusPaise,
-          reason: "REFERRAL",
-          ref: order.id,
-          note: `Referral bonus from ${u.name}`,
-        });
-        await notify(
+      if (u.referredById) {
+        await creditUserWallet(
+          u.referredById,
+          {
+            amountPaise: settings.referralBonusPaise,
+            reason: "REFERRAL",
+            ref: order.id,
+            note: `Referral bonus from ${u.name}`,
+          },
+          tx,
+        );
+        // Notify outside the tx proper — notify() uses its own prisma calls
+        // and can retry/error without rolling back the credit.
+        void notify(
           u.referredById,
           "WALLET",
           "Referral bonus credited!",
@@ -97,14 +111,15 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
         );
       }
     }
-  }
+  });
 }
 
 // Reverse both the loyalty award and the referral bonus for an order. Called
 // inside the cancel $transaction of both orders.ts (customer cancel) and
 // admin.ts (admin cancel). Clamps each reversal to the current balance so
 // concurrent redemptions between award and cancel don't drive balances
-// negative.
+// negative. Also resets User.referralBonusClaimed so a legit retry of a
+// cancelled first-order still triggers the bonus on the next PAID order.
 export async function clawbackOrderRewards(
   tx: Tx,
   orderId: string,
@@ -138,15 +153,15 @@ export async function clawbackOrderRewards(
   }
 
   // Referral bonus reversal: if the referrer was credited for this order,
-  // debit their wallet (clamped to current balance). Without this, a refer-
-  // rer could permanently keep the bonus on a cancelled order. Guarded by
-  // findFirst so repeated calls are idempotent.
+  // debit their wallet (clamped) and reset the buyer's referralBonusClaimed
+  // flag so a legit retry on a new order can re-trigger. Without the reset,
+  // a user whose first order is cancelled would never get their referrer
+  // the bonus, even on a successful second order.
   const ref = await tx.walletTransaction.findFirst({
     where: { ref: orderId, reason: "REFERRAL", type: "CREDIT" },
     select: { userId: true, amountPaise: true },
   });
   if (ref && ref.userId && ref.amountPaise > 0) {
-    // Already-reversed? Look for a matching ADJUSTMENT debit we wrote below.
     const already = await tx.walletTransaction.findFirst({
       where: {
         ref: orderId,
@@ -173,6 +188,18 @@ export async function clawbackOrderRewards(
           },
           tx,
         );
+      }
+      // Reset the buyer's claim flag so their next PAID order can award
+      // again. Look up the buyer via the cancelled order.
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { userId: true },
+      });
+      if (order) {
+        await tx.user.updateMany({
+          where: { id: order.userId, referralBonusClaimed: true },
+          data: { referralBonusClaimed: false },
+        });
       }
     }
   }

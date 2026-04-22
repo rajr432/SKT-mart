@@ -782,7 +782,7 @@ router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
     if (!match) throw new HttpError(400, "Invalid OTP");
 
     await prisma.$transaction(async (tx) => {
-      await tx.orderItem.updateMany({
+      const claim = await tx.orderItem.updateMany({
         where: {
           orderId: order.id,
           vendorId: vendor.id,
@@ -790,7 +790,19 @@ router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
         },
         data: { status: "DELIVERED" },
       });
-      // Check if all items are now delivered → update order status + clear OTP
+      // Vendor-ownership guard: only vendors with at least one OUT_FOR_
+      // DELIVERY item in this order can verify. Without this, any authed
+      // vendor who knows an orderId could supply a correct OTP (or even
+      // brute-force it given the 4-digit space) and trigger the remaining-
+      // items check below. If every other vendor's items were already in
+      // terminal states, the whole order would flip to DELIVERED and the
+      // OTP would be cleared — locking the real delivery vendor out.
+      if (claim.count === 0) {
+        throw new HttpError(
+          403,
+          "No deliverable items found for your store in this order",
+        );
+      }
       const remaining = await tx.orderItem.count({
         where: {
           orderId: order.id,

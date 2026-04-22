@@ -140,6 +140,11 @@ model User {
   walletBalance     Int                  @default(0) // customer wallet (paise)
   referralCode      String?              @unique
   referredById      String?
+  // One-shot flag for first-PAID-order referral bonus. Flipped true via CAS
+  // updateMany inside the award $transaction so two concurrent paid orders
+  // from the same user can't both double-credit the referrer. Reset to
+  // false by the cancel/clawback path so a legit retry still triggers.
+  referralBonusClaimed Boolean             @default(false)
   referredBy        User?                @relation("Referral", fields: [referredById], references: [id])
   referrals         User[]               @relation("Referral")
   notifications     Notification[]
@@ -843,13 +848,20 @@ model LoyaltyTransaction {
   id           String   @id @default(cuid())
   userId       String
   points       Int // positive=earn, negative=redeem
-  reason       String // ORDER_EARN | ORDER_REDEEM | REFERRAL | EXPIRY | ADJUSTMENT
+  reason       String // ORDER_EARN | ORDER_REDEEM | ORDER_CANCEL | REFERRAL | EXPIRY | ADJUSTMENT
   ref          String?
   balanceAfter Int
   createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // DB-level idempotency for award paths that key on (user, order, reason).
+  // Prevents concurrent awardOrderRewards calls for the same order from
+  // double-crediting ORDER_EARN; a racing create now raises P2002 which the
+  // caller catches and treats as already-awarded. `ref` is nullable so
+  // rows without a ref (e.g. ADJUSTMENT, EXPIRY) are unaffected — NULLs
+  // are distinct under SQL unique semantics.
+  @@unique([userId, ref, reason])
   @@index([userId])
 }
 
