@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { api, formatPaise } from "@/lib/api";
 
@@ -56,6 +57,7 @@ export default function AdminOrdersPage() {
             <th>Total</th>
             <th>Payment</th>
             <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -81,6 +83,14 @@ export default function AdminOrdersPage() {
                     <option key={s}>{s}</option>
                   ))}
                 </select>
+              </td>
+              <td>
+                <Link
+                  href={`/admin/orders/${o.id}`}
+                  className="text-xs text-brand hover:underline"
+                >
+                  View &rarr;
+                </Link>
               </td>
             </tr>
           ))}

@@ -470,6 +470,22 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
         where: { id: orderItem.id },
         data: { status },
       });
+      // Generate delivery OTP when any item goes OUT_FOR_DELIVERY and order
+      // doesn't already have one. Customer must share this OTP with the
+      // delivery agent to confirm receipt.
+      if (status === "OUT_FOR_DELIVERY") {
+        const existingOtp = await tx.order.findUnique({
+          where: { id: orderItem.order.id },
+          select: { deliveryOtp: true },
+        });
+        if (!existingOtp?.deliveryOtp) {
+          const otp = String(Math.floor(1000 + Math.random() * 9000));
+          await tx.order.update({
+            where: { id: orderItem.order.id },
+            data: { deliveryOtp: otp },
+          });
+        }
+      }
       const siblings = await tx.orderItem.findMany({
         where: { orderId: orderItem.order.id, status: { notIn: ["CANCELLED", "RETURNED"] } },
         select: { status: true },
@@ -565,6 +581,53 @@ router.get("/stats", async (req, res, next) => {
       unitsSold: orderAgg._sum.quantity ?? 0,
       pendingOrders,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Verify delivery OTP — vendor/delivery agent submits the 4-digit OTP the
+// customer received. On match, all OUT_FOR_DELIVERY items in this order are
+// marked DELIVERED and the OTP is cleared.
+router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
+  try {
+    const { otp } = z.object({ otp: z.string().length(4) }).parse(req.body);
+    const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.sub } });
+    if (!vendor) throw new HttpError(404, "Vendor profile not found");
+
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.orderId },
+      select: { id: true, deliveryOtp: true, orderNumber: true },
+    });
+    if (!order) throw new HttpError(404, "Order not found");
+    if (!order.deliveryOtp) throw new HttpError(400, "No delivery OTP set for this order");
+    if (order.deliveryOtp !== otp) throw new HttpError(400, "Invalid OTP");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: order.id,
+          vendorId: vendor.id,
+          status: "OUT_FOR_DELIVERY",
+        },
+        data: { status: "DELIVERED" },
+      });
+      // Check if all items are now delivered → update order status + clear OTP
+      const remaining = await tx.orderItem.count({
+        where: {
+          orderId: order.id,
+          status: { notIn: ["DELIVERED", "CANCELLED", "RETURNED"] },
+        },
+      });
+      if (remaining === 0) {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: "DELIVERED", deliveryOtp: null },
+        });
+      }
+    });
+
+    res.json({ ok: true, message: "Delivery confirmed" });
   } catch (e) {
     next(e);
   }

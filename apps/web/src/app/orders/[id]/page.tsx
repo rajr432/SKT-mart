@@ -160,25 +160,35 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       <div className="card p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-medium">Items</h3>
-          <button
-            onClick={async () => {
-              try {
-                for (const it of order.items) {
-                  await api("/api/cart", {
-                    token: token!,
-                    method: "POST",
-                    json: { productId: it.productId, quantity: it.quantity },
-                  });
+          <div className="flex gap-2">
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "https://skt-mart-api.onrender.com"}/api/orders/${order.id}/invoice`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200"
+            >
+              🧾 Invoice
+            </a>
+            <button
+              onClick={async () => {
+                try {
+                  for (const it of order.items) {
+                    await api("/api/cart", {
+                      token: token!,
+                      method: "POST",
+                      json: { productId: it.productId, quantity: it.quantity },
+                    });
+                  }
+                  router.push("/cart");
+                } catch (e) {
+                  alert((e as Error).message);
                 }
-                router.push("/cart");
-              } catch (e) {
-                alert((e as Error).message);
-              }
-            }}
-            className="text-xs bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"
-          >
-            🔄 Reorder all
-          </button>
+              }}
+              className="text-xs bg-brand text-white px-3 py-1.5 rounded-md hover:bg-brand-dark"
+            >
+              🔄 Reorder all
+            </button>
+          </div>
         </div>
         {order.items.map((it) => (
           <div key={it.id} className="flex justify-between items-start text-sm py-2 border-b last:border-0">

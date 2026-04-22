@@ -265,6 +265,29 @@ router.get("/orders", async (_req, res, next) => {
   }
 });
 
+router.get("/orders/:id", async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        items: {
+          include: {
+            product: { select: { slug: true } },
+            vendor: { select: { storeName: true } },
+          },
+        },
+        address: true,
+        payment: true,
+      },
+    });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    res.json({ order });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.patch("/orders/:id/status", async (req, res, next) => {
   try {
     const { status } = z

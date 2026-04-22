@@ -433,6 +433,93 @@ router.get("/:id", requireAuth, async (req, res, next) => {
   }
 });
 
+// HTML invoice — browser opens this and user does Ctrl+P → Save as PDF.
+// No server-side PDF library needed; keeps deployment light.
+router.get("/:id/invoice", requireAuth, async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: { include: { product: true } },
+        address: true,
+        user: { select: { name: true, email: true, phone: true } },
+      },
+    });
+    if (!order) throw new HttpError(404, "Order not found");
+    if (order.userId !== req.user!.sub && req.user!.role !== "ADMIN")
+      throw new HttpError(403, "Not authorized");
+
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const fmt = (p: number) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(p / 100);
+
+    const rows = order.items
+      .map(
+        (it) =>
+          `<tr>
+            <td style="padding:8px;border-bottom:1px solid #eee">${esc(it.product.name)}<br><small style="color:#888">SKU: ${esc(it.product.sku)}</small></td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${it.quantity}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(it.price)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${fmt(it.price * it.quantity)}</td>
+          </tr>`,
+      )
+      .join("");
+
+    const addr = order.address;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${esc(order.orderNumber)}</title>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:system-ui,-apple-system,sans-serif;color:#222;padding:40px;max-width:800px;margin:0 auto}
+        h1{font-size:24px;margin-bottom:4px}
+        .meta{display:flex;justify-content:space-between;margin:24px 0}
+        .meta div{font-size:13px;line-height:1.6}
+        table{width:100%;border-collapse:collapse;margin:16px 0}
+        th{text-align:left;padding:8px;border-bottom:2px solid #333;font-size:13px}
+        .totals{margin-left:auto;width:280px}
+        .totals tr td{padding:4px 8px;font-size:14px}
+        .totals tr:last-child td{font-weight:700;font-size:16px;border-top:2px solid #333;padding-top:8px}
+        .footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#888;text-align:center}
+        @media print{body{padding:0}}
+      </style>
+    </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><h1>SKT Mart</h1><p style="font-size:12px;color:#666">Tax Invoice / Order Receipt</p></div>
+        <div style="text-align:right;font-size:13px"><strong>Order #${esc(order.orderNumber)}</strong><br>${new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</div>
+      </div>
+      <div class="meta">
+        <div><strong>Bill To</strong><br>${esc(order.user.name)}<br>${order.user.email ? esc(order.user.email) + "<br>" : ""}${order.user.phone ? esc(order.user.phone) + "<br>" : ""}</div>
+        <div style="text-align:right"><strong>Ship To</strong><br>${esc(addr.name)}<br>${esc(addr.line1)}${addr.line2 ? ", " + esc(addr.line2) : ""}<br>${esc(addr.city)}, ${esc(addr.state)} ${esc(addr.pincode)}<br>${addr.phone ? esc(addr.phone) : ""}</div>
+      </div>
+      <table>
+        <thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <table class="totals">
+        <tr><td>Subtotal</td><td style="text-align:right">${fmt(order.subtotal)}</td></tr>
+        ${order.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right;color:#16a34a">-${fmt(order.discount)}</td></tr>` : ""}
+        <tr><td>Shipping</td><td style="text-align:right">${order.shippingFee === 0 ? "FREE" : fmt(order.shippingFee)}</td></tr>
+        ${order.tax > 0 ? `<tr><td>Tax</td><td style="text-align:right">${fmt(order.tax)}</td></tr>` : ""}
+        <tr><td>Total</td><td style="text-align:right">${fmt(order.total)}</td></tr>
+      </table>
+      <p style="font-size:13px;margin-top:8px">Payment: <strong>${order.paymentMethod}</strong> · Status: <strong>${order.paymentStatus}</strong></p>
+      <div class="footer">
+        This is a computer-generated invoice and does not require a signature.<br>
+        SKT Mart · sktmart25@gmail.com · https://sktmartstore.in
+      </div>
+      <script>window.onload=()=>window.print()</script>
+    </body></html>`;
+
+    res.type("html").send(html);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/:id/cancel", requireAuth, async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({ where: { id: req.params.id } });
