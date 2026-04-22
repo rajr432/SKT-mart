@@ -716,7 +716,14 @@ router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
     });
     if (!order) throw new HttpError(404, "Order not found");
     if (!order.deliveryOtp) throw new HttpError(400, "No delivery OTP set for this order");
-    if (order.deliveryOtp !== otp) throw new HttpError(400, "Invalid OTP");
+    // Constant-time compare — consistent with razorpay.ts verifySignature.
+    // 4-digit OTP brute-force space is small (9000), but timing side-channel
+    // could narrow it further for an authenticated vendor/agent attacker.
+    const expected = Buffer.from(order.deliveryOtp, "utf8");
+    const supplied = Buffer.from(otp, "utf8");
+    const match =
+      expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+    if (!match) throw new HttpError(400, "Invalid OTP");
 
     await prisma.$transaction(async (tx) => {
       await tx.orderItem.updateMany({

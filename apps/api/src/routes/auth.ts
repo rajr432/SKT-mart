@@ -164,7 +164,10 @@ router.post("/forgot-password", async (req, res, next) => {
         },
       });
       const web = process.env.WEB_URL ?? "https://sktmart.vercel.app";
-      const link = `${web}/reset-password?token=${token}`;
+      // Escape WEB_URL (operator-controlled, not user input) for defence-in-depth
+      // consistency with index.ts htmlAttrEscape and sameFile escapeHtmlSafe for
+      // user.name at line 179. Token is 64 hex chars so it's safe as-is.
+      const link = `${escapeHtmlSafe(web)}/reset-password?token=${token}`;
       await sendEmail(
         user.email,
         "Reset your SKT Mart password",
