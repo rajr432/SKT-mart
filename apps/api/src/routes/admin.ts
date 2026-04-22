@@ -220,7 +220,7 @@ router.patch("/users/:id/role", async (req, res, next) => {
       select: { id: true, role: true },
     });
     await audit(
-      (req as unknown as { user?: { id?: string } }).user?.id ?? null,
+      req.user!.sub,
       "USER_ROLE_CHANGED",
       "User",
       req.params.id,

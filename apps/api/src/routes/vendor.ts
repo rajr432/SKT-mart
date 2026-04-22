@@ -502,15 +502,23 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
           }
         }
         // Only advance forward — never regress Order.status below its current
-        // value (e.g. a CANCELLED order or already-DELIVERED order must not be
-        // re-opened by this aggregate). Also don't overwrite terminal states.
-        await tx.order.updateMany({
-          where: {
-            id: orderItem.order.id,
-            status: { notIn: ["CANCELLED", "RETURNED"] },
-          },
-          data: { status: minStatus as never },
-        });
+        // value. In a multi-vendor order, Vendor B moving their item forward
+        // from PLACED → CONFIRMED must NOT regress Order.status from SHIPPED
+        // (set by Vendor A) back to CONFIRMED — that would re-enable the
+        // customer cancel flow on already-shipped goods. Implement by only
+        // matching Orders whose current status has a strictly lower rank.
+        const lowerStatuses = Object.entries(STATUS_RANK)
+          .filter(([, r]) => r < minRank)
+          .map(([s]) => s);
+        if (lowerStatuses.length > 0) {
+          await tx.order.updateMany({
+            where: {
+              id: orderItem.order.id,
+              status: { in: lowerStatuses as never },
+            },
+            data: { status: minStatus as never },
+          });
+        }
       }
       return u;
     });

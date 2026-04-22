@@ -62,13 +62,35 @@ router.post("/razorpay/verify", requireAuth, async (req, res, next) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order || order.userId !== req.user!.sub) throw new HttpError(404, "Order not found");
 
-    await prisma.$transaction([
-      prisma.payment.update({
+    // A late Razorpay callback must NOT re-open an order the customer already
+    // cancelled (stock was restocked by cancel; re-confirming would desync
+    // inventory and charge the customer for nothing). Guard via updateMany
+    // with a terminal-state exclusion; if 0 rows match, refund the payment.
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
+          paymentStatus: { not: "PAID" },
+        },
+        data: { paymentStatus: "PAID", status: "CONFIRMED" },
+      });
+      if (updated.count === 0) {
+        return { reopened: false };
+      }
+      await tx.payment.update({
         where: { orderId },
         data: { status: "PAID", razorpayPaymentId, razorpaySignature },
-      }),
-      prisma.order.update({ where: { id: orderId }, data: { paymentStatus: "PAID", status: "CONFIRMED" } }),
-    ]);
+      });
+      return { reopened: true };
+    });
+
+    if (!result.reopened) {
+      throw new HttpError(
+        409,
+        "Order is already cancelled or finalised — payment cannot be applied. Contact support for a refund.",
+      );
+    }
 
     res.json({ ok: true });
   } catch (e) {
