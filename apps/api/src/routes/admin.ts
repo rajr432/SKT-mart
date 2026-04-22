@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { audit } from "../lib/audit";
-// HttpError import removed; not used in this file
+import { creditUserWallet } from "../lib/wallet";
+import { HttpError } from "../middleware/error";
 
 const router = Router();
 
@@ -288,6 +289,11 @@ router.get("/orders/:id", async (req, res, next) => {
   }
 });
 
+// Admin forward-progress status updates only. CANCELLED and RETURNED are
+// terminal/side-effectful states that require stock restocking, coupon slot
+// release, and (for WALLET/Razorpay-paid orders) a refund. Those must go
+// through POST /admin/orders/:id/cancel to guarantee the customer is made
+// whole — see customer cancel flow in orders.ts for the canonical sequence.
 router.patch("/orders/:id/status", async (req, res, next) => {
   try {
     const { status } = z
@@ -299,13 +305,77 @@ router.patch("/orders/:id/status", async (req, res, next) => {
           "SHIPPED",
           "OUT_FOR_DELIVERY",
           "DELIVERED",
-          "CANCELLED",
-          "RETURNED",
         ]),
       })
       .parse(req.body);
     const order = await prisma.order.update({ where: { id: req.params.id }, data: { status } });
+    await audit(req.user!.sub, "ORDER_STATUS_CHANGED", "Order", req.params.id, { status });
     res.json({ order });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Admin cancel — atomically: restock items, decrement coupon usedCount, refund
+// wallet if order was paid. Mirrors the customer cancel flow in orders.ts.
+router.post("/orders/:id/cancel", async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) throw new HttpError(404, "Order not found");
+    if (["CANCELLED", "RETURNED", "DELIVERED"].includes(order.status))
+      throw new HttpError(400, `Order is already ${order.status.toLowerCase()}`);
+    const updated = await prisma.$transaction(async (tx) => {
+      const claim = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
+        },
+        data: { status: "CANCELLED" },
+      });
+      if (claim.count === 0)
+        throw new HttpError(400, "Order already finalised, cannot cancel");
+      const o = await tx.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { items: true },
+      });
+      // Restock only items that haven't already been cancelled/returned (their
+      // stock was never decremented again or is already accounted for).
+      for (const it of o.items) {
+        if (it.status === "CANCELLED" || it.status === "RETURNED") continue;
+        await tx.product.update({
+          where: { id: it.productId },
+          data: { stock: { increment: it.quantity } },
+        });
+      }
+      if (o.couponCode) {
+        await tx.$executeRawUnsafe(
+          `UPDATE "Coupon" SET "usedCount" = "usedCount" - 1 WHERE code = $1 AND "usedCount" > 0`,
+          o.couponCode,
+        );
+      }
+      if (o.paymentStatus === "PAID") {
+        await creditUserWallet(
+          o.userId,
+          {
+            amountPaise: o.total,
+            reason: "REFUND",
+            ref: o.id,
+            note: `Admin-initiated refund for cancelled order ${o.orderNumber}`,
+          },
+          tx,
+        );
+        return tx.order.update({
+          where: { id: o.id },
+          data: { paymentStatus: "REFUNDED" },
+          include: { items: true },
+        });
+      }
+      return o;
+    });
+    await audit(req.user!.sub, "ORDER_CANCELLED_BY_ADMIN", "Order", req.params.id, {
+      refunded: updated.paymentStatus === "REFUNDED",
+    });
+    res.json({ order: updated });
   } catch (e) {
     next(e);
   }

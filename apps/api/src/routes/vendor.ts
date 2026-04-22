@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -479,7 +480,10 @@ router.patch("/orders/:orderItemId/status", async (req, res, next) => {
           select: { deliveryOtp: true },
         });
         if (!existingOtp?.deliveryOtp) {
-          const otp = String(Math.floor(1000 + Math.random() * 9000));
+          // CSPRNG — Math.random is xorshift128+ and an attacker who can
+          // observe OTPs on their own test orders can reconstruct internal
+          // state and predict OTPs for other customers' deliveries.
+          const otp = String(1000 + crypto.randomInt(9000));
           await tx.order.update({
             where: { id: orderItem.order.id },
             data: { deliveryOtp: otp },
