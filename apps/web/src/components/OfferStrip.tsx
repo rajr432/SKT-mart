@@ -6,7 +6,7 @@ const OFFERS = [
   "🎉 First order? Use WELCOME10 — get 10% off (up to ₹500)",
   "🚚 FREE delivery on orders ₹500+ across 29,000+ pincodes",
   "💳 Extra 5% off with SKT Wallet payments",
-  "🪙 Earn 1 SKT Coin on every ₹10 spent — 100 coins = ₹10 off",
+  "🪙 Earn 1 SKT Coin on every ₹100 spent — 100 coins = ₹100 off",
   "🎁 Buy gift cards from ₹100 — delivered instantly by email",
   "↩️ 7-day no-questions-asked returns + instant wallet refund",
 ];

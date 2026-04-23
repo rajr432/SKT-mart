@@ -8,7 +8,7 @@ const FAQS: { q: string; a: string }[] = [
   { q: "How much is shipping?", a: "Free delivery on orders ₹500+. Otherwise a flat ₹40 shipping fee. Standard delivery 3-7 days; metro pincodes often see 1-2 day express delivery." },
   { q: "How do I become a seller on SKT Mart?", a: "Go to Sell on SKT Mart → apply → pay the one-time ₹199 lifetime fee. No monthly subscription. Only 10% commission, charged only on products priced ₹499+." },
   { q: "How does SKT Wallet work?", a: "SKT Wallet is your in-app balance. Add money via Razorpay, use it for faster checkout, and all refunds are instantly credited back into it. You can also withdraw the balance to your bank." },
-  { q: "What are SKT Coins?", a: "You earn 1 SKT Coin for every ₹10 spent. 100 coins = ₹10 discount on a future order. Coins never expire and apply automatically at checkout if you opt in." },
+  { q: "What are SKT Coins?", a: "You earn 1 SKT Coin for every ₹100 spent. 100 coins = ₹100 discount on a future order. Coins never expire and apply automatically at checkout if you opt in." },
   { q: "Do you have gift cards?", a: "Yes — ₹100 to ₹10,000 denominations, delivered instantly by email. Recipient gets a unique code redeemable on any product." },
   { q: "How do I refer a friend?", a: "Account → Refer & Earn → share your link. When your friend completes their first order, both of you get ₹100 wallet credit." },
   { q: "How do I contact support?", a: "Email sktmart25@gmail.com (24×7, avg reply under 12 hours), or use the chat bubble at the bottom-right of any page for instant FAQ support." },
