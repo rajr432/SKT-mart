@@ -45,4 +45,34 @@ router.delete("/:productId", requireAuth, async (req, res, next) => {
   }
 });
 
+// Bulk "move all in-stock wishlist items into cart" — skips out-of-stock so
+// the customer isn't surprised by partial failures, returns counts for UI.
+router.post("/move-to-cart", requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.user!.sub;
+    const items = await prisma.wishlistItem.findMany({
+      where: { userId },
+      include: { product: { select: { id: true, stock: true, published: true } } },
+    });
+    let moved = 0;
+    let skipped = 0;
+    for (const w of items) {
+      if (!w.product?.published || w.product.stock <= 0) {
+        skipped++;
+        continue;
+      }
+      await prisma.cartItem.upsert({
+        where: { userId_productId: { userId, productId: w.productId } },
+        update: { quantity: { increment: 1 } },
+        create: { userId, productId: w.productId, quantity: 1 },
+      });
+      await prisma.wishlistItem.delete({ where: { id: w.id } });
+      moved++;
+    }
+    res.json({ moved, skipped });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

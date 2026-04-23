@@ -44,8 +44,34 @@ export default function WishlistPage() {
 
   return (
     <div className="container-page py-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h1 className="text-xl font-semibold">My Wishlist ({items.length})</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+        {items.length > 0 && (
+          <button
+            onClick={async () => {
+              try {
+                const r = await api<{ moved: number; skipped: number }>(
+                  "/api/wishlist/move-to-cart",
+                  { token, method: "POST" },
+                );
+                if (r.moved === 0) {
+                  alert("Nothing to move — items are out of stock or unavailable.");
+                } else {
+                  alert(
+                    `${r.moved} item${r.moved === 1 ? "" : "s"} moved to cart${r.skipped ? ` · ${r.skipped} skipped (out of stock)` : ""}`,
+                  );
+                  router.push("/cart");
+                }
+              } catch (e) {
+                alert((e as Error).message);
+              }
+            }}
+            className="text-sm bg-brand-yellow text-white px-3 py-1.5 rounded-md"
+          >
+            🛒 Move all to cart
+          </button>
+        )}
         {items.length > 0 && (
           <button
             onClick={async () => {
@@ -77,6 +103,7 @@ export default function WishlistPage() {
             ↗ Share wishlist
           </button>
         )}
+        </div>
       </div>
       {items.length === 0 ? (
         <div className="card p-10 text-center">
