@@ -400,7 +400,9 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
           data: { stock: { increment: it.quantity } },
         });
       }
-      if (o.couponCode) {
+      // Only refund a coupon slot if placement actually consumed one
+      // (`couponDiscount > 0`). Mirrors the customer cancel flow.
+      if (o.couponCode && o.couponDiscount > 0) {
         await tx.$executeRawUnsafe(
           `UPDATE "Coupon" SET "usedCount" = "usedCount" - 1 WHERE code = $1 AND "usedCount" > 0`,
           o.couponCode,

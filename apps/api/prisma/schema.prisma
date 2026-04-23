@@ -504,6 +504,11 @@ model Order {
   paymentStatus PaymentStatus @default(PENDING)
   paymentMethod PaymentMethod @default(RAZORPAY)
   couponCode    String?
+  // Coupon discount amount in paise. Stored separately from the aggregated
+  // `discount` field so cancel flows can decide whether to refund a coupon
+  // usage slot (only when this is > 0 did placement consume one). Default
+  // 0 handles legacy orders created before this column existed.
+  couponDiscount Int          @default(0)
   notes         String?
   shiprocketOrderId    Int?
   shiprocketShipmentId Int?

@@ -121,6 +121,7 @@ router.post("/", requireAuth, async (req, res, next) => {
           addressId: address.id,
           subtotal: breakup.subtotal,
           discount: breakup.discount + breakup.couponDiscount,
+          couponDiscount: breakup.couponDiscount,
           shippingFee: breakup.shippingFee,
           tax: breakup.tax,
           total: breakup.total,
@@ -206,7 +207,14 @@ router.post("/", requireAuth, async (req, res, next) => {
       }
       await tx.cartItem.deleteMany({ where: { userId } });
 
-      if (body.couponCode) {
+      // Only consume a coupon slot when the coupon actually applied a
+      // discount. `computePrice` returns `couponDiscount: 0` for expired,
+      // inactive, before-startsAt, or below-minOrder coupons — if we
+      // incremented usedCount regardless, an attacker could burn every
+      // slot on a limited-use code by placing orders that don't qualify,
+      // permanently locking out legitimate users without ever receiving a
+      // discount themselves.
+      if (body.couponCode && breakup.couponDiscount > 0) {
         // Race-safe usage-limit consumption via raw SQL conditional update.
         // Prisma's updateMany cannot reference another column in WHERE
         // (`usedCount < usageLimit`), so we use executeRawUnsafe. Two
@@ -547,7 +555,9 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
       // cancelled order, blocking other users. Guarded by `usedCount > 0`
       // so we never decrement below zero (defensive — the increment at
       // order placement is also conditional).
-      if (o.couponCode) {
+      // Only refund a coupon slot if placement actually consumed one
+      // (`couponDiscount > 0`). Legacy orders default to 0 so they no-op.
+      if (o.couponCode && o.couponDiscount > 0) {
         await tx.$executeRawUnsafe(
           `UPDATE "Coupon" SET "usedCount" = "usedCount" - 1 WHERE code = $1 AND "usedCount" > 0`,
           o.couponCode,

@@ -6,7 +6,15 @@ services:
     plan: free
     rootDir: .
     buildCommand: npm install --workspaces --include-workspace-root --no-audit --no-fund && cd apps/api && npx prisma generate && npm run build
-    startCommand: cd apps/api && npx prisma db push --skip-generate --accept-data-loss && node dist/index.js
+    # `db push` WITHOUT `--accept-data-loss`: additive schema changes (new
+    # columns, new indexes, new tables) still apply on every deploy, but any
+    # change Prisma classifies as destructive (drop column, drop table,
+    # narrow type) will abort the deploy instead of silently dropping prod
+    # data. This repo has no `prisma/migrations` directory yet, so we can't
+    # switch to `prisma migrate deploy`; the safer intermediate is to keep
+    # `db push` but fail loud on destructive changes so they land in an
+    # explicit migration PR.
+    startCommand: cd apps/api && npx prisma db push --skip-generate && node dist/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
