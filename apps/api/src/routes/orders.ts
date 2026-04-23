@@ -8,7 +8,11 @@ import { generateOrderNumber } from "../lib/order";
 import { computeCommission } from "../lib/commission";
 import { notify } from "../lib/notify";
 import { creditUserWallet, debitUserWallet } from "../lib/wallet";
-import { awardOrderRewards, clawbackOrderRewards } from "../lib/rewards";
+import {
+  awardOrderRewardsInTx,
+  clawbackOrderRewards,
+  notifyReferrerAfterCommit,
+} from "../lib/rewards";
 import { getSettings } from "../lib/settings";
 import { sendWhatsApp } from "../lib/whatsapp";
 import { sendPushToUser } from "../lib/push";
@@ -112,7 +116,7 @@ router.post("/", requireAuth, async (req, res, next) => {
       }),
     );
 
-    const order = await prisma.$transaction(async (tx): Promise<Awaited<ReturnType<typeof tx.order.create>>> => {
+    const result = await prisma.$transaction(async (tx) => {
       const isWallet = body.paymentMethod === "WALLET";
       const created = await tx.order.create({
         data: {
@@ -232,7 +236,20 @@ router.post("/", requireAuth, async (req, res, next) => {
         }
       }
 
-      return created;
+      // Loyalty + referral run INSIDE this tx so they commit atomically
+      // with the PAID transition. Without this, a WALLET order that the
+      // customer immediately cancels could race: cancel's clawback would
+      // find no ORDER_EARN/REFERRAL rows to reverse, then the post-commit
+      // award would commit onto a CANCELLED order — permanently crediting
+      // the referrer ₹bonus and the buyer loyalty points for a refunded
+      // order. Running in-tx closes that window: either the award commits
+      // together with the order (and cancel's clawback sees the rows), or
+      // neither lands. awardOrderRewardsInTx is a no-op for non-PAID
+      // orders (Razorpay/UPI stay PENDING here) — those trigger from
+      // payments.ts inside the /razorpay/verify tx, same pattern.
+      const notifyPayload = await awardOrderRewardsInTx(tx, created.id);
+
+      return { created, notifyPayload };
     }).catch((e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "Insufficient wallet balance") {
@@ -241,23 +258,19 @@ router.post("/", requireAuth, async (req, res, next) => {
       throw e;
     });
 
+    const order = result.created;
     // Respond immediately: the order is already committed. Any failure in the
-    // post-commit side-effects below (loyalty, referral, notify) must NOT turn
+    // post-commit side-effects below (notify, WhatsApp, push) must NOT turn
     // a committed order into a 500, because the client would retry and place a
     // duplicate order.
     res.status(201).json({ order });
 
+    // Dispatch the referrer notification after tx commit so a rollback
+    // can't leave an orphan "bonus credited" email.
+    notifyReferrerAfterCommit(result.notifyPayload);
+
     // Post-commit side-effects. Errors are logged but never re-thrown.
     try {
-      // Loyalty + referral are gated on paymentStatus='PAID' inside the
-      // helper. WALLET orders are PAID atomically at creation, so the
-      // awards run here. Razorpay/UPI orders stay PENDING at this point;
-      // their awards are triggered from payments.ts after a successful
-      // /razorpay/verify flips them to PAID. The helper is idempotent
-      // (ORDER_EARN + REFERRAL rows are keyed on orderId) so there's no
-      // risk of double-credit if both paths race.
-      await awardOrderRewards(order.id);
-
       await notify(
         userId,
         "ORDER",
