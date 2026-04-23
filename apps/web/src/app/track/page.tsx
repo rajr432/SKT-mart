@@ -14,7 +14,7 @@ interface TrackStep {
 interface TrackResult {
   orderNumber: string;
   status: string;
-  total: number;
+  total?: number;
   createdAt: string;
   expectedBy: string | null;
   steps: TrackStep[];
@@ -94,8 +94,8 @@ export default function TrackOrderPage() {
               <p className="font-mono font-semibold">{result.orderNumber}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500">Total</p>
-              <p className="font-semibold">₹{(result.total / 100).toFixed(2)}</p>
+              <p className="text-xs text-gray-500">Status</p>
+              <p className="font-semibold">{result.status}</p>
             </div>
           </div>
 

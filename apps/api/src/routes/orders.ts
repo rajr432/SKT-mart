@@ -361,9 +361,10 @@ router.get("/", requireAuth, async (req, res, next) => {
   }
 });
 
-// Public order tracking by orderNumber (used by /track page). Exposes only
-// the status-timeline + totals — never PII (address, phone, email, items).
-// Anyone with an orderNumber can look up status; deliberately minimal data.
+// Public order tracking by orderNumber (used by /track page). Exposes ONLY
+// status + timeline — never PII (address, phone, email, items) and never
+// financial data (total). The orderNumber format is guessable enough that
+// leaking order totals would enable enumeration of customer spend.
 router.get("/track/:orderNumber", async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
@@ -371,9 +372,7 @@ router.get("/track/:orderNumber", async (req, res, next) => {
       select: {
         orderNumber: true,
         status: true,
-        total: true,
         placedAt: true,
-        items: { select: { status: true } },
       },
     });
     if (!order) throw new HttpError(404, "Order not found. Check the number and try again.");
@@ -398,7 +397,6 @@ router.get("/track/:orderNumber", async (req, res, next) => {
       order: {
         orderNumber: order.orderNumber,
         status: order.status,
-        total: order.total,
         createdAt: placed.toISOString(),
         expectedBy: expectedBy.toISOString(),
         steps,

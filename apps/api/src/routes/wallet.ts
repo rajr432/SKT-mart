@@ -71,7 +71,20 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
     // Verify with Razorpay BEFORE entering the tx so the tx is short.
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
+    // Cross-flow replay guard: fetch the Razorpay order and verify its notes
+    // identify this flow + this user. Without this check, an attacker could
+    // take a valid (orderId, paymentId, signature) tuple from any other
+    // Razorpay flow on the merchant (e.g. vendor registration) and replay it
+    // here to credit their wallet — PaymentDedup only blocks the same
+    // paymentId twice, not cross-flow misuse.
+    const userId = req.user!.sub;
+    const rzOrder = await rz.orders.fetch(body.razorpayOrderId);
+    const notes = (rzOrder?.notes ?? {}) as { kind?: string; userId?: string };
+    if (notes.kind !== "WALLET_RECHARGE" || notes.userId !== userId)
+      throw new HttpError(400, "Order does not belong to this wallet recharge");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
+    if (payment.order_id !== body.razorpayOrderId)
+      throw new HttpError(400, "Payment does not belong to this order");
     const amountPaise = typeof payment.amount === "number"
       ? payment.amount
       : parseInt(String(payment.amount), 10);
@@ -88,7 +101,6 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
     // the authoritative serialization point — the second concurrent tx hits
     // P2002 on commit and rolls back cleanly. On retry it reads the existing
     // claim and returns the original WalletTransaction idempotently.
-    const userId = req.user!.sub;
     const paymentRef = body.razorpayPaymentId;
     let dedup = false;
     let txn;
@@ -213,7 +225,15 @@ router.post("/vendor/recharge/confirm", requireAuth, requireRole("VENDOR"), asyn
     if (!valid) throw new HttpError(400, "Invalid signature");
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
+    // Cross-flow replay guard — see /recharge/confirm above.
+    const vendorId = v.id;
+    const rzOrder = await rz.orders.fetch(body.razorpayOrderId);
+    const notes = (rzOrder?.notes ?? {}) as { kind?: string; vendorId?: string };
+    if (notes.kind !== "VENDOR_WALLET_RECHARGE" || notes.vendorId !== vendorId)
+      throw new HttpError(400, "Order does not belong to this vendor recharge");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
+    if (payment.order_id !== body.razorpayOrderId)
+      throw new HttpError(400, "Payment does not belong to this order");
     const amountPaise = typeof payment.amount === "number"
       ? payment.amount
       : parseInt(String(payment.amount), 10);
@@ -222,8 +242,6 @@ router.post("/vendor/recharge/confirm", requireAuth, requireRole("VENDOR"), asyn
     if (payment.status !== "captured" && payment.status !== "authorized")
       throw new HttpError(400, `Payment not captured (status: ${payment.status})`);
 
-    // Atomic dedupe via PaymentDedup — see /recharge/confirm above.
-    const vendorId = v.id;
     const paymentRef = body.razorpayPaymentId;
     let result;
     try {

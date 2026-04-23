@@ -26,6 +26,7 @@ const NAV = [
     { href: "/admin/orders", label: "Orders" },
     { href: "/admin/returns", label: "Returns" },
     { href: "/admin/payouts", label: "Payouts" },
+    { href: "/admin/pincodes", label: "Pincodes" },
   ]},
   { group: "Platform", links: [
     { href: "/admin/users", label: "Users" },

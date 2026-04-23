@@ -113,19 +113,19 @@ enum PaymentMethod {
 // ========== USERS ==========
 
 model User {
-  id            String   @id @default(cuid())
-  email         String?  @unique
-  phone         String?  @unique
-  name          String
-  password      String?
-  role          Role     @default(CUSTOMER)
-  emailVerified Boolean  @default(false)
-  phoneVerified Boolean  @default(false)
-  avatar        String?
-  passwordResetToken   String?  @unique
+  id                   String    @id @default(cuid())
+  email                String?   @unique
+  phone                String?   @unique
+  name                 String
+  password             String?
+  role                 Role      @default(CUSTOMER)
+  emailVerified        Boolean   @default(false)
+  phoneVerified        Boolean   @default(false)
+  avatar               String?
+  passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   vendor    Vendor?
   addresses Address[]
@@ -136,35 +136,36 @@ model User {
   otps      Otp[]
 
   // Engagement
-  loyaltyPoints     Int                  @default(0)
-  walletBalance     Int                  @default(0) // customer wallet (paise)
-  referralCode      String?              @unique
-  referredById      String?
+  loyaltyPoints        Int                  @default(0)
+  walletBalance        Int                  @default(0) // customer wallet (paise)
+  referralCode         String?              @unique
+  referredById         String?
   // One-shot flag for first-PAID-order referral bonus. Flipped true via CAS
   // updateMany inside the award $transaction so two concurrent paid orders
   // from the same user can't both double-credit the referrer. Reset to
   // false by the cancel/clawback path so a legit retry still triggers.
-  referralBonusClaimed Boolean             @default(false)
-  referredBy        User?                @relation("Referral", fields: [referredById], references: [id])
-  referrals         User[]               @relation("Referral")
-  notifications     Notification[]
-  returns           Return[]
-  questions         ProductQuestion[]
-  answers           ProductAnswer[]
-  stockAlerts       StockAlert[]
-  priceAlerts       PriceAlert[]
-  recentlyViewed    RecentlyViewed[]
-  giftCardsBought   GiftCard[]           @relation("GiftCardBuyer")
-  giftCardsRedeemed GiftCardRedemption[]
-  walletTxns        WalletTransaction[]  @relation("UserWalletTxn")
-  loyaltyTxns       LoyaltyTransaction[]
-  auditLogs         AuditLog[]
-  comparisons       Comparison[]
-  searchLogs        SearchLog[]
-  pushSubscriptions PushSubscription[]
-  googleId          String?              @unique
-  deletedAt         DateTime?
-  uploadedImages    ImageAsset[]
+  referralBonusClaimed Boolean              @default(false)
+  referredBy           User?                @relation("Referral", fields: [referredById], references: [id])
+  referrals            User[]               @relation("Referral")
+  notifications        Notification[]
+  returns              Return[]
+  questions            ProductQuestion[]
+  answers              ProductAnswer[]
+  stockAlerts          StockAlert[]
+  priceAlerts          PriceAlert[]
+  recentlyViewed       RecentlyViewed[]
+  giftCardsBought      GiftCard[]           @relation("GiftCardBuyer")
+  giftCardsRedeemed    GiftCardRedemption[]
+  walletTxns           WalletTransaction[]  @relation("UserWalletTxn")
+  loyaltyTxns          LoyaltyTransaction[]
+  auditLogs            AuditLog[]
+  comparisons          Comparison[]
+  searchLogs           SearchLog[]
+  pushSubscriptions    PushSubscription[]
+  googleId             String?              @unique
+  deletedAt            DateTime?
+  uploadedImages       ImageAsset[]
+  answerVotes          AnswerVote[]
 }
 
 // Persistent image storage (binary in Postgres). Render's ephemeral /tmp
@@ -237,27 +238,27 @@ model Address {
 // ========== VENDORS ==========
 
 model Vendor {
-  id          String       @id @default(cuid())
-  userId      String       @unique
-  storeName   String
-  slug        String       @unique
-  description String?
-  logo        String?
-  gstin       String?
-  pan         String?
-  bankAccount String?
-  ifsc        String?
-  status      VendorStatus @default(PENDING)
-  registrationPaid Boolean @default(false) // one-time ₹199 lifetime fee
-  registrationPaidAt DateTime?
+  id                     String       @id @default(cuid())
+  userId                 String       @unique
+  storeName              String
+  slug                   String       @unique
+  description            String?
+  logo                   String?
+  gstin                  String?
+  pan                    String?
+  bankAccount            String?
+  ifsc                   String?
+  status                 VendorStatus @default(PENDING)
+  registrationPaid       Boolean      @default(false) // one-time ₹199 lifetime fee
+  registrationPaidAt     DateTime?
   // Unique so a Razorpay paymentId cannot be replayed across this column
   // and WalletTransaction.ref to double-credit or re-activate a suspended
   // vendor. Postgres treats multiple NULLs as distinct, so nullability is
   // preserved for vendors who haven't paid yet.
-  registrationPaymentRef String? @unique
-  rating      Float        @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  registrationPaymentRef String?      @unique
+  rating                 Float        @default(0)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   products   Product[]
@@ -386,12 +387,29 @@ model ProductAnswer {
   questionId String
   userId     String
   answer     String
+  upvotes    Int      @default(0)
   createdAt  DateTime @default(now())
 
   question ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
   user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes    AnswerVote[]
 
   @@index([questionId])
+}
+
+// Prevents the same user double-upvoting the same answer; the denormalized
+// ProductAnswer.upvotes counter is kept in sync inside a transaction when a
+// vote is created/deleted.
+model AnswerVote {
+  id        String   @id @default(cuid())
+  answerId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  answer ProductAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([answerId, userId])
 }
 
 model StockAlert {
@@ -511,30 +529,30 @@ model WishlistItem {
 // ========== ORDERS ==========
 
 model Order {
-  id            String        @id @default(cuid())
-  orderNumber   String        @unique
-  userId        String
-  addressId     String
-  subtotal      Int
-  discount      Int           @default(0)
-  shippingFee   Int           @default(0)
-  tax           Int           @default(0)
-  total         Int
-  status        OrderStatus   @default(PLACED)
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentMethod PaymentMethod @default(RAZORPAY)
-  couponCode    String?
+  id                   String        @id @default(cuid())
+  orderNumber          String        @unique
+  userId               String
+  addressId            String
+  subtotal             Int
+  discount             Int           @default(0)
+  shippingFee          Int           @default(0)
+  tax                  Int           @default(0)
+  total                Int
+  status               OrderStatus   @default(PLACED)
+  paymentStatus        PaymentStatus @default(PENDING)
+  paymentMethod        PaymentMethod @default(RAZORPAY)
+  couponCode           String?
   // Coupon discount amount in paise. Stored separately from the aggregated
   // `discount` field so cancel flows can decide whether to refund a coupon
   // usage slot (only when this is > 0 did placement consume one). Default
   // 0 handles legacy orders created before this column existed.
-  couponDiscount Int          @default(0)
-  notes         String?
+  couponDiscount       Int           @default(0)
+  notes                String?
   shiprocketOrderId    Int?
   shiprocketShipmentId Int?
-  deliveryOtp   String?
-  placedAt      DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  deliveryOtp          String?
+  placedAt             DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   user    User        @relation(fields: [userId], references: [id])
   address Address     @relation(fields: [addressId], references: [id])
@@ -639,11 +657,11 @@ model Banner {
 // ========== PINCODE SERVICEABILITY ==========
 
 model Pincode {
-  pincode      String  @id
-  city         String
-  state        String
-  serviceable  Boolean @default(true)
-  etaDays      Int     @default(5)
+  pincode     String  @id
+  city        String
+  state       String
+  serviceable Boolean @default(true)
+  etaDays     Int     @default(5)
 }
 
 // ========== APP SETTINGS ==========
@@ -714,20 +732,20 @@ model SiteContent {
 // ========== FLASH SALES (time-bound product discounts) ==========
 
 model FlashSale {
-  id           String    @id @default(cuid())
-  name         String
-  productId    String
+  id            String   @id @default(cuid())
+  name          String
+  productId     String
   // Both optional: unset = no-op / percent-only
-  discountPct  Float?
+  discountPct   Float?
   priceOverride Int? // paise
-  startAt      DateTime
-  endAt        DateTime
-  stock        Int?      // optional stock cap for the sale
-  sold         Int       @default(0)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
+  startAt       DateTime
+  endAt         DateTime
+  stock         Int? // optional stock cap for the sale
+  sold          Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
 
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([startAt])
@@ -787,12 +805,12 @@ model WalletTransaction {
 // uncommitted inserts. Application code catches P2002 on this table and
 // treats it as an idempotent replay.
 model PaymentDedup {
-  id         String   @id @default(cuid())
-  paymentRef String   @unique
-  kind       String // WALLET_RECHARGE_USER | WALLET_RECHARGE_VENDOR | VENDOR_REGISTRATION
-  consumerId String // userId or vendorId that consumed this payment
+  id          String   @id @default(cuid())
+  paymentRef  String   @unique
+  kind        String // WALLET_RECHARGE_USER | WALLET_RECHARGE_VENDOR | VENDOR_REGISTRATION
+  consumerId  String // userId or vendorId that consumed this payment
   amountPaise Int
-  createdAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([consumerId])
 }

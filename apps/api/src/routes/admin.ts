@@ -644,6 +644,71 @@ router.post("/pincodes", async (req, res, next) => {
   }
 });
 
+router.get("/pincodes", async (req, res, next) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    const items = await prisma.pincode.findMany({
+      where: q
+        ? {
+            OR: [
+              { pincode: { contains: q } },
+              { city: { contains: q, mode: "insensitive" } },
+              { state: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: { pincode: "asc" },
+      take: 500,
+    });
+    res.json({ items });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete("/pincodes/:pincode", async (req, res, next) => {
+  try {
+    await prisma.pincode.delete({ where: { pincode: req.params.pincode } });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Bulk upload pincodes via CSV-like array (pincode,city,state,etaDays).
+// Idempotent: uses upsert so re-running the same rows won't create dupes.
+router.post("/pincodes/bulk", async (req, res, next) => {
+  try {
+    const schema = z.object({
+      rows: z.array(
+        z.object({
+          pincode: z.string().length(6),
+          city: z.string(),
+          state: z.string(),
+          serviceable: z.boolean().default(true),
+          etaDays: z.number().int().min(1).max(30).default(5),
+        }),
+      ).max(5000),
+    });
+    const { rows } = schema.parse(req.body);
+    let inserted = 0;
+    let updated = 0;
+    for (const r of rows) {
+      const existing = await prisma.pincode.findUnique({ where: { pincode: r.pincode } });
+      await prisma.pincode.upsert({
+        where: { pincode: r.pincode },
+        update: r,
+        create: r,
+      });
+      if (existing) updated++;
+      else inserted++;
+    }
+    res.json({ inserted, updated, total: rows.length });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ============ ANALYTICS ============
 
 router.get("/analytics", async (req, res, next) => {

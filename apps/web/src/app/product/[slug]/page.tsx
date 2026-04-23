@@ -12,6 +12,8 @@ import SizeGuideButton from "@/components/SizeGuideButton";
 import ProductAlerts from "@/components/ProductAlerts";
 import ImageZoomGallery from "@/components/ImageZoomGallery";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
+import ShareSheet from "@/components/ShareSheet";
+import ProductQA from "@/components/ProductQA";
 
 export const dynamic = "force-dynamic";
 
@@ -134,8 +136,20 @@ export default async function ProductPage({ params }: { params: { slug: string }
               Sold by <span className="text-brand font-medium">{product.vendor.storeName}</span>
             </p>
           )}
+
+          <div className="pt-2">
+            <ShareSheet
+              title={product.name}
+              url={
+                (process.env.NEXT_PUBLIC_WEB_URL ?? "https://sktmart.vercel.app") +
+                `/product/${product.slug}`
+              }
+            />
+          </div>
         </div>
       </div>
+
+      <ProductQA productId={product.id} />
 
       <ReviewForm productId={product.id} />
 
