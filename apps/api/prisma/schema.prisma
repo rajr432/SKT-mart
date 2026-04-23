@@ -272,6 +272,7 @@ model Vendor {
   payouts            Payout[]
   campaigns          AdCampaign[]
   commissions        Commission[]
+  coupons            Coupon[]
   storyImage         String?
   banner             String?
   returnPolicy       String?
@@ -508,11 +509,13 @@ model CartItem {
   productId String
   quantity  Int      @default(1)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
+  @@index([updatedAt])
 }
 
 model WishlistItem {
@@ -642,7 +645,13 @@ model Coupon {
   active      Boolean   @default(true)
   usageLimit  Int?
   usedCount   Int       @default(0)
+  // Vendor-scoped coupon. When set, the coupon applies only to items sold by
+  // this vendor; platform-wide coupons leave this null.
+  vendorId    String?
+  vendor      Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
+
+  @@index([vendorId])
 }
 
 model Banner {
@@ -713,6 +722,10 @@ model AppSettings {
   codFeePaise            Int      @default(0)
   // Returns
   returnWindowDays       Int      @default(7)
+  // Wallet cashback tiers (recharge bonus). Array of { minPaise, cashbackPaise }
+  // — highest matching tier wins. Credited as separate BONUS txn on confirm.
+  // Default: 0 (feature off until admin configures).
+  walletCashbackTiers    Json     @default("[]")
   updatedAt              DateTime @updatedAt
 }
 

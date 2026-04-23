@@ -139,6 +139,18 @@ export default function AdminSettingsPage() {
       </section>
 
       <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Wallet cashback tiers</h2>
+        <p className="text-xs text-gray-500">
+          On every wallet recharge, the customer gets a bonus credit based on the highest tier
+          they qualify for. Empty = feature off. All amounts in paise (₹ × 100).
+        </p>
+        <CashbackTiersEditor
+          value={Array.isArray(s.walletCashbackTiers) ? s.walletCashbackTiers : []}
+          onChange={(tiers) => setS({ ...s, walletCashbackTiers: tiers })}
+        />
+      </section>
+
+      <section className="card p-4 space-y-3">
         <h2 className="font-semibold">COD & Returns</h2>
         <div className="grid md:grid-cols-4 gap-3">
           {field("codEnabled", "COD available at checkout", "checkbox")}
@@ -154,6 +166,74 @@ export default function AdminSettingsPage() {
         </button>
         <span className="text-sm text-green-600">{msg}</span>
       </div>
+    </div>
+  );
+}
+
+// Tier editor — stored as an array on AppSettings.walletCashbackTiers. We keep
+// the UI tiny (minPaise / cashbackPaise + delete) and let the backend handle
+// validation + tier selection. "Add tier" is capped at 10 to match the API.
+interface Tier {
+  minPaise: number;
+  cashbackPaise: number;
+}
+function CashbackTiersEditor({
+  value,
+  onChange,
+}: {
+  value: Tier[];
+  onChange: (t: Tier[]) => void;
+}) {
+  const update = (i: number, patch: Partial<Tier>) => {
+    const next = value.slice();
+    next[i] = { ...next[i], ...patch };
+    onChange(next);
+  };
+  return (
+    <div className="space-y-2">
+      {value.length === 0 && (
+        <p className="text-xs text-gray-400">No tiers configured. Add one below.</p>
+      )}
+      {value.map((t, i) => (
+        <div key={i} className="flex gap-2 items-end">
+          <label className="flex-1">
+            <span className="text-[11px] text-gray-600">Min recharge (paise)</span>
+            <input
+              type="number"
+              value={t.minPaise}
+              min={1}
+              onChange={(e) => update(i, { minPaise: Number(e.target.value) })}
+              className="mt-1 w-full border rounded px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="flex-1">
+            <span className="text-[11px] text-gray-600">Cashback (paise)</span>
+            <input
+              type="number"
+              value={t.cashbackPaise}
+              min={1}
+              onChange={(e) => update(i, { cashbackPaise: Number(e.target.value) })}
+              className="mt-1 w-full border rounded px-3 py-2 text-sm"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => onChange(value.filter((_, j) => j !== i))}
+            className="px-3 py-2 text-sm border rounded text-red-600 hover:bg-red-50"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      {value.length < 10 && (
+        <button
+          type="button"
+          onClick={() => onChange([...value, { minPaise: 50000, cashbackPaise: 2500 }])}
+          className="text-sm text-blue-600 hover:underline"
+        >
+          + Add tier
+        </button>
+      )}
     </div>
   );
 }

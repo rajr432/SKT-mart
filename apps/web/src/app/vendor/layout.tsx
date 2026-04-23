@@ -35,6 +35,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
         <Link href="/vendor/orders" className="block px-3 py-2 rounded hover:bg-gray-100">Orders</Link>
         <Link href="/vendor/wallet" className="block px-3 py-2 rounded hover:bg-gray-100">Wallet & Payouts</Link>
         <Link href="/vendor/ads" className="block px-3 py-2 rounded hover:bg-gray-100">Ad Campaigns</Link>
+        <Link href="/vendor/coupons" className="block px-3 py-2 rounded hover:bg-gray-100">Store Coupons</Link>
       </aside>
       <div>{children}</div>
     </div>

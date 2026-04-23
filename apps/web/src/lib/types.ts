@@ -234,4 +234,5 @@ export interface AppSettings {
   codMaxOrderPaise?: number;
   codFeePaise?: number;
   returnWindowDays?: number;
+  walletCashbackTiers?: Array<{ minPaise: number; cashbackPaise: number }>;
 }

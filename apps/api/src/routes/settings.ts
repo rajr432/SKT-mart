@@ -89,6 +89,17 @@ const updateSchema = z.object({
   codFeePaise: z.number().int().min(0).optional(),
   // Returns
   returnWindowDays: z.number().int().min(0).max(365).optional(),
+  // Wallet cashback tiers. Non-overlapping rows keyed by min recharge amount.
+  // Empty array disables the feature; max 10 tiers to keep the UI sane.
+  walletCashbackTiers: z
+    .array(
+      z.object({
+        minPaise: z.number().int().positive(),
+        cashbackPaise: z.number().int().positive(),
+      }),
+    )
+    .max(10)
+    .optional(),
 });
 
 router.patch("/", requireAuth, requireRole("ADMIN"), async (req, res, next) => {

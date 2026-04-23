@@ -830,4 +830,116 @@ router.post("/orders/:orderId/verify-otp", async (req, res, next) => {
   }
 });
 
+// ========== Vendor store coupons ==========
+// Vendors can create coupons that apply only to their own products. Scoping
+// is enforced in pricing.ts (vendorId-filtered cart lines), so we just need
+// to stamp the coupon row with the vendor's id on create. Vendors cannot
+// touch platform-wide (vendorId=null) coupons.
+
+async function resolveVendorId(userId: string) {
+  const v = await prisma.vendor.findUnique({ where: { userId }, select: { id: true } });
+  if (!v) throw new HttpError(404, "Vendor profile not found");
+  return v.id;
+}
+
+router.get("/coupons", async (req, res, next) => {
+  try {
+    const vendorId = await resolveVendorId(req.user!.sub);
+    const items = await prisma.coupon.findMany({
+      where: { vendorId },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ items });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const vendorCouponSchema = z.object({
+  code: z
+    .string()
+    .min(3)
+    .max(40)
+    // Uppercase + digits only to match the pattern used by platform coupons
+    // and avoid confusing display (lowercase / spaces create support pain).
+    .regex(/^[A-Z0-9_-]+$/, "Use A-Z, 0-9, _ or -"),
+  title: z.string().min(2).max(80),
+  type: z.enum(["PERCENT", "FLAT"]),
+  value: z.number().int().positive(),
+  minOrder: z.number().int().min(0).default(0),
+  maxDiscount: z.number().int().positive().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  active: z.boolean().default(true),
+});
+
+router.post("/coupons", async (req, res, next) => {
+  try {
+    const vendorId = await resolveVendorId(req.user!.sub);
+    const body = vendorCouponSchema.parse(req.body);
+    if (body.type === "PERCENT" && body.value > 90)
+      throw new HttpError(400, "Percent coupons capped at 90%");
+    const existing = await prisma.coupon.findUnique({ where: { code: body.code } });
+    if (existing) throw new HttpError(409, "Coupon code already exists");
+    const coupon = await prisma.coupon.create({
+      data: {
+        code: body.code,
+        title: body.title,
+        type: body.type,
+        value: body.value,
+        minOrder: body.minOrder,
+        maxDiscount: body.maxDiscount ?? null,
+        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+        usageLimit: body.usageLimit ?? null,
+        active: body.active,
+        vendorId,
+      },
+    });
+    res.json({ coupon });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const vendorCouponPatchSchema = vendorCouponSchema.partial().omit({ code: true });
+
+router.patch("/coupons/:id", async (req, res, next) => {
+  try {
+    const vendorId = await resolveVendorId(req.user!.sub);
+    const data = vendorCouponPatchSchema.parse(req.body);
+    if (data.type === "PERCENT" && typeof data.value === "number" && data.value > 90)
+      throw new HttpError(400, "Percent coupons capped at 90%");
+    // updateMany + count-check enforces scope at the DB level so a crafted
+    // request body cannot reach another vendor's (or a platform) coupon.
+    const r = await prisma.coupon.updateMany({
+      where: { id: req.params.id, vendorId },
+      data: {
+        ...data,
+        expiresAt:
+          data.expiresAt === undefined
+            ? undefined
+            : data.expiresAt
+              ? new Date(data.expiresAt)
+              : null,
+      },
+    });
+    if (r.count === 0) throw new HttpError(404, "Coupon not found");
+    const coupon = await prisma.coupon.findUnique({ where: { id: req.params.id } });
+    res.json({ coupon });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete("/coupons/:id", async (req, res, next) => {
+  try {
+    const vendorId = await resolveVendorId(req.user!.sub);
+    const r = await prisma.coupon.deleteMany({ where: { id: req.params.id, vendorId } });
+    if (r.count === 0) throw new HttpError(404, "Coupon not found");
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

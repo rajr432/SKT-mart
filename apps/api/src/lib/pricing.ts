@@ -6,6 +6,9 @@ export interface CartLine {
   price: number;
   mrp: number;
   quantity: number;
+  // Optional — used to scope vendor coupons. When absent we fall back to a
+  // single Prisma roundtrip to hydrate it from productId.
+  vendorId?: string;
 }
 
 export interface PriceBreakup {
@@ -34,7 +37,6 @@ export async function computePrice(
     if (
       coupon &&
       coupon.active &&
-      sellingTotal >= coupon.minOrder &&
       // Honour scheduled activation — a coupon with a future startsAt must
       // not be usable yet. Schema defaults startsAt to now(), so a row only
       // fails this check when an admin explicitly set a future date.
@@ -42,16 +44,40 @@ export async function computePrice(
       (!coupon.expiresAt || coupon.expiresAt > now) &&
       (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit)
     ) {
-      const raw =
-        coupon.type === "PERCENT"
-          ? Math.floor((sellingTotal * coupon.value) / 100)
-          : coupon.value;
-      const capped = coupon.maxDiscount ? Math.min(raw, coupon.maxDiscount) : raw;
-      // Clamp to sellingTotal — a FLAT coupon with value > cart total must
-      // not produce a couponDiscount larger than the cart itself. Otherwise
-      // `Order.discount = discount + couponDiscount` (orders.ts) balloons
-      // past subtotal and breaks analytics / CSV exports / admin dashboards.
-      couponDiscount = Math.min(capped, sellingTotal);
+      // Vendor-scoped coupons apply only to the subset of lines sold by the
+      // coupon's vendor. Platform-wide coupons (vendorId null) keep the
+      // full-cart behaviour. We hydrate missing vendorIds with a single
+      // batched query so callers can pass cart lines without pre-joining.
+      let scopedLines: CartLine[] = lines;
+      if (coupon.vendorId) {
+        const missing = lines.filter((l) => !l.vendorId).map((l) => l.productId);
+        const vendorByProductId = new Map<string, string>();
+        if (missing.length) {
+          const rows = await prisma.product.findMany({
+            where: { id: { in: missing } },
+            select: { id: true, vendorId: true },
+          });
+          for (const r of rows) vendorByProductId.set(r.id, r.vendorId);
+        }
+        scopedLines = lines.filter((l) => {
+          const vid = l.vendorId ?? vendorByProductId.get(l.productId);
+          return vid === coupon.vendorId;
+        });
+      }
+      const scopedTotal = scopedLines.reduce((s, l) => s + l.price * l.quantity, 0);
+      if (scopedTotal >= coupon.minOrder && scopedTotal > 0) {
+        const raw =
+          coupon.type === "PERCENT"
+            ? Math.floor((scopedTotal * coupon.value) / 100)
+            : coupon.value;
+        const capped = coupon.maxDiscount ? Math.min(raw, coupon.maxDiscount) : raw;
+        // Clamp to the scoped subtotal — a FLAT coupon with value > scoped
+        // cart must not produce a couponDiscount larger than the items it
+        // applies to. Otherwise `Order.discount = discount + couponDiscount`
+        // (orders.ts) balloons past subtotal and breaks analytics / CSV
+        // exports / admin dashboards.
+        couponDiscount = Math.min(capped, scopedTotal);
+      }
     }
   }
 

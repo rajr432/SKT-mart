@@ -11,6 +11,33 @@ const router = Router();
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
+// Cashback tier helpers. Tiers come from AppSettings.walletCashbackTiers —
+// a JSON array of { minPaise, cashbackPaise }. We keep parsing defensive so
+// a malformed admin value never crashes the recharge flow.
+interface CashbackTier {
+  minPaise: number;
+  cashbackPaise: number;
+}
+function parseCashbackTiers(raw: unknown): CashbackTier[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((t) => {
+      if (!t || typeof t !== "object") return null;
+      const minPaise = Number((t as Record<string, unknown>).minPaise);
+      const cashbackPaise = Number((t as Record<string, unknown>).cashbackPaise);
+      if (!Number.isFinite(minPaise) || minPaise <= 0) return null;
+      if (!Number.isFinite(cashbackPaise) || cashbackPaise <= 0) return null;
+      return { minPaise, cashbackPaise };
+    })
+    .filter((x): x is CashbackTier => x !== null)
+    .sort((a, b) => a.minPaise - b.minPaise);
+}
+function bestCashbackFor(amountPaise: number, tiers: CashbackTier[]): number {
+  let best = 0;
+  for (const t of tiers) if (amountPaise >= t.minPaise) best = t.cashbackPaise;
+  return best;
+}
+
 // Customer wallet
 router.get("/", requireAuth, async (req, res, next) => {
   try {
@@ -102,6 +129,14 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
     // P2002 on commit and rolls back cleanly. On retry it reads the existing
     // claim and returns the original WalletTransaction idempotently.
     const paymentRef = body.razorpayPaymentId;
+    // Cashback tiers are configured on AppSettings.walletCashbackTiers as an
+    // array of { minPaise, cashbackPaise }. We pick the highest tier the
+    // recharge qualifies for (strict min threshold) and credit it as a
+    // separate BONUS wallet txn inside the same $transaction as the recharge,
+    // so dedup/retry cannot double-bonus.
+    const settings = await prisma.appSettings.findUnique({ where: { id: "default" } });
+    const tiers = parseCashbackTiers(settings?.walletCashbackTiers);
+    const bonusPaise = bestCashbackFor(amountPaise, tiers);
     let dedup = false;
     let txn;
     try {
@@ -114,11 +149,24 @@ router.post("/recharge/confirm", requireAuth, async (req, res, next) => {
             amountPaise,
           },
         });
-        return creditUserWallet(
+        const main = await creditUserWallet(
           userId,
           { amountPaise, reason: "RECHARGE", ref: paymentRef, note: "Razorpay recharge" },
           tx,
         );
+        if (bonusPaise > 0) {
+          await creditUserWallet(
+            userId,
+            {
+              amountPaise: bonusPaise,
+              reason: "ADJUSTMENT",
+              ref: `${paymentRef}:cashback`,
+              note: `Recharge cashback on ₹${Math.round(amountPaise / 100)}`,
+            },
+            tx,
+          );
+        }
+        return main;
       });
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;

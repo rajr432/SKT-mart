@@ -42,6 +42,7 @@ import siteContentRouter from "./routes/siteContent";
 import flashSalesRouter from "./routes/flashSales";
 import bundlesRouter from "./routes/bundles";
 import adminBundlesRouter from "./routes/adminBundles";
+import abandonedCartRouter from "./routes/abandonedCart";
 
 const app = express();
 
@@ -194,6 +195,7 @@ app.use("/api/site-content", siteContentRouter);
 app.use("/api/flash-sales", flashSalesRouter);
 app.use("/api/bundles", bundlesRouter);
 app.use("/api/admin/bundles", adminBundlesRouter);
+app.use("/api/abandoned-cart", abandonedCartRouter);
 
 // Sitemap & robots
 app.get("/sitemap.xml", async (_req, res, next) => {
