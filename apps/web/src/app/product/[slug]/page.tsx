@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { api, discountPercent, formatPaise } from "@/lib/api";
 import type { Product } from "@/lib/types";
 import { notFound } from "next/navigation";
@@ -16,8 +17,35 @@ import ShareSheet from "@/components/ShareSheet";
 import ProductQA from "@/components/ProductQA";
 import FrequentlyBoughtTogether from "@/components/FrequentlyBoughtTogether";
 import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
+import ProductVideo from "@/components/ProductVideo";
 
 export const dynamic = "force-dynamic";
+
+// SEO metadata per product. Vendor-supplied metaTitle/metaDesc win; otherwise
+// we fall back to the product name + a brand/price-rich description so the
+// long tail still indexes well.
+export async function generateMetadata(
+  { params }: { params: { slug: string } },
+): Promise<Metadata> {
+  try {
+    const { product } = await api<{ product: Product }>(`/api/products/${params.slug}`);
+    const title = product.metaTitle || `${product.name}${product.brand ? ` – ${product.brand}` : ""}`;
+    const description =
+      product.metaDesc ||
+      `${product.name} at ${formatPaise(product.price)} on SKT Mart. ${
+        product.brand ? `Genuine ${product.brand}. ` : ""
+      }Free 7-day returns. Fast India-wide delivery.`.slice(0, 160);
+    const image = product.images[0]?.url;
+    return {
+      title,
+      description,
+      openGraph: { title, description, images: image ? [image] : [] },
+      twitter: { card: "summary_large_image", title, description, images: image ? [image] : [] },
+    };
+  } catch {
+    return { title: "Product" };
+  }
+}
 
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const data = await api<{ product: Product }>(`/api/products/${params.slug}`).catch(() => null);
@@ -152,6 +180,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
       </div>
 
       <RecentlyViewedTracker productId={product.id} productSlug={product.slug} />
+
+      <ProductVideo url={product.videoUrl} />
 
       <FrequentlyBoughtTogether productId={product.id} />
 

@@ -54,6 +54,9 @@ export interface Product {
   category?: Category;
   specs?: Record<string, any> | null;
   reviews?: Review[];
+  videoUrl?: string | null;
+  metaTitle?: string | null;
+  metaDesc?: string | null;
 }
 
 export interface Review {

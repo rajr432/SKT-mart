@@ -380,6 +380,9 @@ const productSchema = z.object({
   published: z.boolean().default(true),
   images: z.array(z.string()).default([]),
   specs: z.record(z.any()).optional(),
+  videoUrl: z.string().url().optional().or(z.literal("")),
+  metaTitle: z.string().max(70).optional(),
+  metaDesc: z.string().max(160).optional(),
 });
 
 router.post("/products", async (req, res, next) => {

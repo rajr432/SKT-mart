@@ -22,6 +22,9 @@ export default function NewProductPage() {
     stock: 0,
     fAssured: false,
     categoryId: "",
+    videoUrl: "",
+    metaTitle: "",
+    metaDesc: "",
   });
   const [images, setImages] = useState<string[]>([]);
   const [urlInput, setUrlInput] = useState("");
@@ -71,13 +74,18 @@ export default function NewProductPage() {
     setErr(null);
     setLoading(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         ...form,
         images,
         mrp: Number(form.mrp),
         price: Number(form.price),
         stock: Number(form.stock),
       };
+      // Omit empty-string SEO/video fields so zod .url() validation doesn't
+      // reject an empty videoUrl on create.
+      if (!form.videoUrl) delete payload.videoUrl;
+      if (!form.metaTitle) delete payload.metaTitle;
+      if (!form.metaDesc) delete payload.metaDesc;
       await api("/api/vendor/products", { token, method: "POST", json: payload });
       router.push("/vendor/products");
     } catch (e) {
@@ -262,6 +270,28 @@ export default function NewProductPage() {
             </div>
           )}
         </div>
+
+        {/* ===== Video + SEO ===== */}
+        <input
+          className="input md:col-span-2"
+          placeholder="Video URL (YouTube, Vimeo, or .mp4 — optional)"
+          value={form.videoUrl}
+          onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+        />
+        <input
+          className="input"
+          maxLength={70}
+          placeholder="SEO title (≤70 chars — optional)"
+          value={form.metaTitle}
+          onChange={(e) => setForm({ ...form, metaTitle: e.target.value })}
+        />
+        <input
+          className="input"
+          maxLength={160}
+          placeholder="SEO description (≤160 chars — optional)"
+          value={form.metaDesc}
+          onChange={(e) => setForm({ ...form, metaDesc: e.target.value })}
+        />
 
         {err && <p className="text-red-600 text-sm md:col-span-2">{err}</p>}
         <button className="btn-yellow md:col-span-2" disabled={loading}>

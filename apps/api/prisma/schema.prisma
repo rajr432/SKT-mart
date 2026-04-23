@@ -325,6 +325,7 @@ model Product {
   published   Boolean         @default(true)
   metaTitle   String?
   metaDesc    String?
+  videoUrl    String?
   views       Int             @default(0)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
