@@ -15,6 +15,7 @@ import StickyMobileCTA from "@/components/StickyMobileCTA";
 import ShareSheet from "@/components/ShareSheet";
 import ProductQA from "@/components/ProductQA";
 import FrequentlyBoughtTogether from "@/components/FrequentlyBoughtTogether";
+import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -149,6 +150,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
           </div>
         </div>
       </div>
+
+      <RecentlyViewedTracker productId={product.id} productSlug={product.slug} />
 
       <FrequentlyBoughtTogether productId={product.id} />
 

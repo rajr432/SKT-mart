@@ -1,43 +1,67 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/components/AuthProvider";
-import { api } from "@/lib/api";
-import type { Product } from "@/lib/types";
-import ProductCard from "@/components/ProductCard";
+import Link from "next/link";
+import { api, formatPaise } from "@/lib/api";
+import { useAuth } from "./AuthProvider";
 
+interface Item {
+  viewedAt: string;
+  product: {
+    id: string;
+    slug: string;
+    name: string;
+    price: number;
+    images: { url: string }[];
+  };
+}
+
+// Recently viewed surface for homepage + account. Server-backed (per user)
+// via /api/recently-viewed. Tracking happens inside ProductActions on PDP.
+// Guest users see nothing here — the guest ring buffer in localStorage is
+// used only to seed server state on login, not to fetch products by id
+// (PDP endpoint is slug-keyed, not id-keyed).
 export default function RecentlyViewed() {
   const { token, ready } = useAuth();
-  const [items, setItems] = useState<Product[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!ready || !token) return;
-    // Endpoint returns RecentlyViewed rows with `.product` nested; unwrap.
-    api<{ items: Array<{ product: Product }> }>("/api/recently-viewed", { token })
-      .then((r) =>
-        setItems(
-          (r.items ?? [])
-            .map((i) => i.product)
-            .filter((p): p is Product => !!p)
-            .slice(0, 10),
-        ),
-      )
-      .catch(() => {});
+    if (!ready) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    api<{ items: Item[] }>("/api/recently-viewed", { token })
+      .then((r) => setItems(r.items))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
   }, [ready, token]);
 
-  if (!token || items.length === 0) return null;
+  if (loading) return null;
+  if (!items.length) return null;
+
   return (
-    <section className="card p-4">
-      <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
-        <span>👀</span> Recently viewed
-      </h2>
-      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-        {items.map((p) => (
-          <div key={p.id} className="min-w-[170px] max-w-[170px]">
-            <ProductCard product={p} />
-          </div>
+    <div className="card p-4">
+      <h2 className="text-lg font-semibold mb-3">Recently viewed</h2>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {items.map((i) => (
+          <Link
+            key={i.product.id}
+            href={`/product/${i.product.slug}`}
+            className="min-w-[120px] shrink-0 block hover:opacity-90"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={i.product.images[0]?.url ?? "/logo.jpg"}
+              alt={i.product.name}
+              className="w-24 h-24 md:w-28 md:h-28 object-cover rounded border"
+            />
+            <p className="text-xs line-clamp-2 mt-1">{i.product.name}</p>
+            <p className="text-xs font-semibold">{formatPaise(i.product.price)}</p>
+          </Link>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

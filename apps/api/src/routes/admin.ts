@@ -613,6 +613,25 @@ router.get("/coupons", async (_req, res, next) => {
   }
 });
 
+const couponPatchSchema = couponSchema.partial().omit({ code: true });
+
+router.patch("/coupons/:id", async (req, res, next) => {
+  try {
+    const data = couponPatchSchema.parse(req.body);
+    const coupon = await prisma.coupon.update({
+      where: { id: req.params.id },
+      data: {
+        ...data,
+        expiresAt:
+          data.expiresAt === undefined ? undefined : data.expiresAt ? new Date(data.expiresAt) : null,
+      },
+    });
+    res.json({ coupon });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.delete("/coupons/:id", async (req, res, next) => {
   try {
     await prisma.coupon.delete({ where: { id: req.params.id } });

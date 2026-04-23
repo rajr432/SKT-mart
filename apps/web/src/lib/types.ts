@@ -132,6 +132,8 @@ export interface Coupon {
   maxDiscount?: number | null;
   expiresAt?: string | null;
   active: boolean;
+  usageLimit?: number | null;
+  usedCount?: number;
 }
 
 export interface WalletTransaction {
