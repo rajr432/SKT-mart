@@ -164,6 +164,25 @@ model User {
   pushSubscriptions PushSubscription[]
   googleId          String?              @unique
   deletedAt         DateTime?
+  uploadedImages    ImageAsset[]
+}
+
+// Persistent image storage (binary in Postgres). Render's ephemeral /tmp
+// disk wipes uploads on every restart/redeploy. Storing bytes in the DB
+// keeps them alive without a third-party CDN; content-addressed via sha256
+// so duplicate uploads are deduped and cached by hash.
+model ImageAsset {
+  id         String   @id @default(cuid())
+  sha256     String   @unique
+  mimeType   String
+  size       Int
+  bytes      Bytes
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }
 
 model PushSubscription {
