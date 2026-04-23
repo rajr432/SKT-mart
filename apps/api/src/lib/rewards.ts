@@ -42,15 +42,20 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
   const points =
     Math.floor(order.total / 10000) * settings.loyaltyEarnPer100;
 
-  // Capture referrer info for post-commit notification. We can't call
-  // notify() inside the tx — it uses the global prisma client so its
-  // Notification row + email would persist even if the enclosing tx
-  // rolls back, leaving the user with a "bonus credited" email for a
-  // bonus that never actually credited.
-  const notifyPayload = await prisma.$transaction(async (tx) => {
-    // ---- Loyalty (DB-level idempotent via @@unique) ----
-    if (points > 0) {
-      try {
+  // Run loyalty and referral in SEPARATE transactions. A P2002 unique-
+  // violation inside a PostgreSQL transaction puts the whole tx into an
+  // aborted state — every subsequent statement fails with "current
+  // transaction is aborted". So we can't catch P2002 on the loyalty
+  // create and then continue to the referral path in the same tx; the
+  // referral queries would error out and roll the whole thing back
+  // (undoing a successful referral credit if loyalty happened to race).
+  // Keeping them independent also means one path's rollback / conflict
+  // never poisons the other.
+
+  // ---- Loyalty (tx 1) — DB-level idempotent via @@unique ----
+  if (points > 0) {
+    try {
+      await prisma.$transaction(async (tx) => {
         const updated = await tx.user.update({
           where: { id: order.userId },
           data: { loyaltyPoints: { increment: points } },
@@ -65,22 +70,25 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
             balanceAfter: updated.loyaltyPoints,
           },
         });
-      } catch (e: unknown) {
-        const code = (e as { code?: string }).code;
-        if (code !== "P2002") throw e; // only swallow unique violations
-        // Already awarded by a concurrent call — the tx rolls back the
-        // points increment above (both ops are in the same $transaction).
-        // Nothing else to do.
-      }
+      });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code !== "P2002") throw e;
+      // Already awarded by a concurrent call. The tx above rolled back
+      // on the unique violation, so the user.update increment was
+      // discarded in the same atomic step. No further work here.
     }
+  }
 
-    // ---- Referral bonus (CAS on User.referralBonusClaimed) ----
-    //
-    // Flip the flag atomically and only proceed if we actually won the
-    // claim. Two concurrent paid orders from the same user: only one
-    // updateMany returns count=1, the other returns 0 and skips the
-    // credit. Farming is separately blocked by the cancel clawback which
-    // reverses both the bonus and the flag.
+  // ---- Referral bonus (tx 2) — CAS on User.referralBonusClaimed ----
+  //
+  // Flip the flag atomically and only proceed if we actually won the
+  // claim. Two concurrent paid orders from the same user: only one
+  // updateMany returns count=1, the other returns 0 and skips the
+  // credit. No check-then-act, no unique violation, no catch needed.
+  // Farming is separately blocked by the cancel clawback which reverses
+  // both the bonus and the flag.
+  const notifyPayload = await prisma.$transaction(async (tx) => {
     const claim = await tx.user.updateMany({
       where: {
         id: order.userId,
@@ -89,32 +97,30 @@ export async function awardOrderRewards(orderId: string): Promise<void> {
       },
       data: { referralBonusClaimed: true },
     });
-    if (claim.count === 1) {
-      const u = await tx.user.findUniqueOrThrow({
-        where: { id: order.userId },
-        select: { referredById: true, name: true },
-      });
-      if (u.referredById) {
-        await creditUserWallet(
-          u.referredById,
-          {
-            amountPaise: settings.referralBonusPaise,
-            reason: "REFERRAL",
-            ref: order.id,
-            note: `Referral bonus from ${u.name}`,
-          },
-          tx,
-        );
-        return {
-          referrerId: u.referredById,
-          amountPaise: settings.referralBonusPaise,
-        };
-      }
-    }
-    return null;
+    if (claim.count !== 1) return null;
+    const u = await tx.user.findUniqueOrThrow({
+      where: { id: order.userId },
+      select: { referredById: true, name: true },
+    });
+    if (!u.referredById) return null;
+    await creditUserWallet(
+      u.referredById,
+      {
+        amountPaise: settings.referralBonusPaise,
+        reason: "REFERRAL",
+        ref: order.id,
+        note: `Referral bonus from ${u.name}`,
+      },
+      tx,
+    );
+    return {
+      referrerId: u.referredById,
+      amountPaise: settings.referralBonusPaise,
+    };
   });
 
-  // Fire notification only after the tx has committed successfully.
+  // Fire notification only after the tx has committed successfully, so a
+  // rollback doesn't leave an orphan "bonus credited" email.
   if (notifyPayload) {
     void notify(
       notifyPayload.referrerId,
