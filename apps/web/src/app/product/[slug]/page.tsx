@@ -14,6 +14,7 @@ import ImageZoomGallery from "@/components/ImageZoomGallery";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
 import ShareSheet from "@/components/ShareSheet";
 import ProductQA from "@/components/ProductQA";
+import FrequentlyBoughtTogether from "@/components/FrequentlyBoughtTogether";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +149,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
           </div>
         </div>
       </div>
+
+      <FrequentlyBoughtTogether productId={product.id} />
 
       <ProductQA productId={product.id} />
 

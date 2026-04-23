@@ -40,6 +40,8 @@ import pushRouter from "./routes/push";
 import shiprocketRouter from "./routes/shiprocket";
 import siteContentRouter from "./routes/siteContent";
 import flashSalesRouter from "./routes/flashSales";
+import bundlesRouter from "./routes/bundles";
+import adminBundlesRouter from "./routes/adminBundles";
 
 const app = express();
 
@@ -190,6 +192,8 @@ app.use("/api/push", pushRouter);
 app.use("/api/shiprocket", shiprocketRouter);
 app.use("/api/site-content", siteContentRouter);
 app.use("/api/flash-sales", flashSalesRouter);
+app.use("/api/bundles", bundlesRouter);
+app.use("/api/admin/bundles", adminBundlesRouter);
 
 // Sitemap & robots
 app.get("/sitemap.xml", async (_req, res, next) => {
