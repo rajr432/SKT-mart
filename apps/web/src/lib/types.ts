@@ -217,4 +217,16 @@ export interface AppSettings {
   supportEmail: string;
   supportPhone: string;
   maintenanceMode: boolean;
+  emiEnabled?: boolean;
+  emiMinAmountPaise?: number;
+  emiTenures?: number[];
+  emiInterestPercent?: number;
+  exitIntentCouponCode?: string;
+  exitIntentMessage?: string;
+  announcementBar?: string;
+  announcementLink?: string | null;
+  codEnabled?: boolean;
+  codMaxOrderPaise?: number;
+  codFeePaise?: number;
+  returnWindowDays?: number;
 }

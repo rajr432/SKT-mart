@@ -119,6 +119,35 @@ export default function AdminSettingsPage() {
         {field("maintenanceMode", "Maintenance mode (blocks checkout)", "checkbox")}
       </section>
 
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Marketing</h2>
+        <div className="grid md:grid-cols-2 gap-3">
+          {field("announcementBar", "Announcement bar text", "text", "Leave empty to hide")}
+          {field("announcementLink", "Announcement link (optional)", "text")}
+          {field("exitIntentCouponCode", "Exit-intent coupon code", "text", "Shown when user tries to leave")}
+          {field("exitIntentMessage", "Exit-intent message", "text")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">EMI</h2>
+        <div className="grid md:grid-cols-4 gap-3">
+          {field("emiEnabled", "EMI enabled on PDP", "checkbox")}
+          {field("emiMinAmountPaise", "Minimum amount for EMI (paise)")}
+          {field("emiInterestPercent", "Annual interest % (for estimate)")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">COD & Returns</h2>
+        <div className="grid md:grid-cols-4 gap-3">
+          {field("codEnabled", "COD available at checkout", "checkbox")}
+          {field("codMaxOrderPaise", "Max order for COD (paise)")}
+          {field("codFeePaise", "COD fee (paise)")}
+          {field("returnWindowDays", "Return window (days)")}
+        </div>
+      </section>
+
       <div className="card p-4 flex items-center gap-3">
         <button onClick={save} disabled={saving} className="btn-primary">
           {saving ? "Saving..." : "Save Settings"}

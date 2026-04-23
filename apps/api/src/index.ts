@@ -38,6 +38,8 @@ import recentlyRouter from "./routes/recently";
 import compareRouter from "./routes/compare";
 import pushRouter from "./routes/push";
 import shiprocketRouter from "./routes/shiprocket";
+import siteContentRouter from "./routes/siteContent";
+import flashSalesRouter from "./routes/flashSales";
 
 const app = express();
 
@@ -186,6 +188,8 @@ app.use("/api/recently-viewed", recentlyRouter);
 app.use("/api/compare", compareRouter);
 app.use("/api/push", pushRouter);
 app.use("/api/shiprocket", shiprocketRouter);
+app.use("/api/site-content", siteContentRouter);
+app.use("/api/flash-sales", flashSalesRouter);
 
 // Sitemap & robots
 app.get("/sitemap.xml", async (_req, res, next) => {

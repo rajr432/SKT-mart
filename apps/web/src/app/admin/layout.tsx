@@ -17,6 +17,10 @@ const NAV = [
     { href: "/admin/vendors", label: "Vendors" },
     { href: "/admin/banners", label: "Banners" },
     { href: "/admin/coupons", label: "Coupons" },
+    { href: "/admin/flash-sales", label: "Flash Sales" },
+  ]},
+  { group: "Content", links: [
+    { href: "/admin/site-content", label: "Site Content" },
   ]},
   { group: "Commerce", links: [
     { href: "/admin/orders", label: "Orders" },

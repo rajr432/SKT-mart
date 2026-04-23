@@ -12,6 +12,8 @@ import ScrollToTop from "@/components/ScrollToTop";
 import AppUpdateBanner from "@/components/AppUpdateBanner";
 import OfferStrip from "@/components/OfferStrip";
 import CompareDrawer from "@/components/CompareDrawer";
+import AnnouncementBar from "@/components/AnnouncementBar";
+import ExitIntentPopup from "@/components/ExitIntentPopup";
 
 export const metadata: Metadata = {
   title: {
@@ -58,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen flex flex-col pb-[64px] md:pb-0">
         <Providers>
+          <AnnouncementBar />
           <OfferStrip />
           <Header />
           <main className="flex-1">{children}</main>
@@ -70,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ScrollToTop />
           <AppUpdateBanner />
           <CompareDrawer />
+          <ExitIntentPopup />
         </Providers>
       </body>
     </html>

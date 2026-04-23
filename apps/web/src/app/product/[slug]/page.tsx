@@ -11,6 +11,7 @@ import DeliveryEstimator from "@/components/DeliveryEstimator";
 import SizeGuideButton from "@/components/SizeGuideButton";
 import ProductAlerts from "@/components/ProductAlerts";
 import ImageZoomGallery from "@/components/ImageZoomGallery";
+import StickyMobileCTA from "@/components/StickyMobileCTA";
 
 export const dynamic = "force-dynamic";
 
@@ -188,6 +189,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
           </div>
         </div>
       )}
+
+      <StickyMobileCTA productId={product.id} price={product.price} inStock={product.stock > 0} />
     </div>
   );
 }

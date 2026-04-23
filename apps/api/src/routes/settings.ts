@@ -24,6 +24,18 @@ router.get("/public", async (_req, res, next) => {
       vendorRegistrationFee: s.vendorRegistrationFee,
       loyaltyValuePaise: s.loyaltyValuePaise,
       features: s.features,
+      emiEnabled: s.emiEnabled,
+      emiMinAmountPaise: s.emiMinAmountPaise,
+      emiTenures: s.emiTenures,
+      emiInterestPercent: s.emiInterestPercent,
+      exitIntentCouponCode: s.exitIntentCouponCode,
+      exitIntentMessage: s.exitIntentMessage,
+      announcementBar: s.announcementBar,
+      announcementLink: s.announcementLink,
+      codEnabled: s.codEnabled,
+      codMaxOrderPaise: s.codMaxOrderPaise,
+      codFeePaise: s.codFeePaise,
+      returnWindowDays: s.returnWindowDays,
     });
   } catch (e) {
     next(e);
@@ -61,6 +73,22 @@ const updateSchema = z.object({
   supportPhone: z.string().optional(),
   maintenanceMode: z.boolean().optional(),
   features: z.record(z.boolean()).optional(),
+  // EMI
+  emiEnabled: z.boolean().optional(),
+  emiMinAmountPaise: z.number().int().min(0).optional(),
+  emiTenures: z.array(z.number().int().min(1).max(60)).optional(),
+  emiInterestPercent: z.number().min(0).max(50).optional(),
+  // Marketing
+  exitIntentCouponCode: z.string().max(40).optional(),
+  exitIntentMessage: z.string().max(200).optional(),
+  announcementBar: z.string().max(300).optional(),
+  announcementLink: z.string().nullable().optional(),
+  // COD
+  codEnabled: z.boolean().optional(),
+  codMaxOrderPaise: z.number().int().min(0).optional(),
+  codFeePaise: z.number().int().min(0).optional(),
+  // Returns
+  returnWindowDays: z.number().int().min(0).max(365).optional(),
 });
 
 router.patch("/", requireAuth, requireRole("ADMIN"), async (req, res, next) => {

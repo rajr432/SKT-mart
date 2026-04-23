@@ -2,6 +2,7 @@ import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
 import Hero3D from "@/components/Hero3D";
 import FlashDealTimer from "@/components/FlashDealTimer";
+import FlashSalesStrip from "@/components/FlashSalesStrip";
 import BrandStrip from "@/components/BrandStrip";
 import Testimonials from "@/components/Testimonials";
 import NewsletterSignup from "@/components/NewsletterSignup";
@@ -56,6 +57,9 @@ export default async function HomePage() {
 
       {/* 3D animated hero carousel */}
       <Hero3D />
+
+      {/* Admin-scheduled flash sales (time-bound) */}
+      <FlashSalesStrip />
 
       {/* Category rail with 3D tilt */}
       <div className="card p-4">

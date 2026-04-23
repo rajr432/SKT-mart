@@ -343,6 +343,7 @@ model Product {
   recentlyViewed RecentlyViewed[]
   comparisons    Comparison[]      @relation("ProductComparisons")
   returnsItems   ReturnItem[]
+  flashSales     FlashSale[]
 
   @@index([vendorId])
   @@index([categoryId])
@@ -677,7 +678,61 @@ model AppSettings {
   supportPhone           String   @default("+91-1800-200-9999")
   maintenanceMode        Boolean  @default(false)
   features               Json     @default("{}") // feature flags
+  // EMI
+  emiEnabled             Boolean  @default(true)
+  emiMinAmountPaise      Int      @default(300000) // ₹3,000 min for EMI
+  emiTenures             Json     @default("[3,6,9,12,18,24]") // months
+  emiInterestPercent     Float    @default(14) // annualised
+  // Marketing
+  exitIntentCouponCode   String   @default("WELCOME10")
+  exitIntentMessage      String   @default("Wait! Get 10% off your first order")
+  announcementBar        String   @default("")
+  announcementLink       String?
+  // COD
+  codEnabled             Boolean  @default(true)
+  codMaxOrderPaise       Int      @default(1000000) // ₹10,000 cap
+  codFeePaise            Int      @default(0)
+  // Returns
+  returnWindowDays       Int      @default(7)
   updatedAt              DateTime @updatedAt
+}
+
+// ========== SITE CONTENT (admin-editable marketing blocks) ==========
+
+// Freeform key -> JSON block, so admins can add/edit hero, testimonials,
+// footer links, FAQ, trust-badge rows, etc. without a schema migration.
+// Public GET returns the full map; admin PUT replaces a single key.
+model SiteContent {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ========== FLASH SALES (time-bound product discounts) ==========
+
+model FlashSale {
+  id           String    @id @default(cuid())
+  name         String
+  productId    String
+  // Both optional: unset = no-op / percent-only
+  discountPct  Float?
+  priceOverride Int? // paise
+  startAt      DateTime
+  endAt        DateTime
+  stock        Int?      // optional stock cap for the sale
+  sold         Int       @default(0)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([startAt])
+  @@index([endAt])
+  @@index([active])
 }
 
 // ========== COMMISSION LEDGER ==========
