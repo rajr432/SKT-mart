@@ -136,7 +136,13 @@ const transitionSchema = z.object({
 const RETURN_RANK: Record<string, number> = {
   REQUESTED: 0,
   APPROVED: 1,
-  REJECTED: 1, // terminal early-exit
+  // REJECTED ranks above APPROVED so an admin can reject after approving
+  // (e.g. fraud discovered post-approval). Same rank as PICKED_UP makes
+  // rejection from PICKED_UP/RECEIVED naturally blocked by the
+  // `targetRank <= currentRank` check — once goods are physically picked
+  // up or received the customer has already shipped product back and a
+  // rejection without refund would be theft.
+  REJECTED: 2, // terminal — reachable from REQUESTED + APPROVED
   PICKED_UP: 2,
   RECEIVED: 3,
   REFUNDED: 4, // terminal

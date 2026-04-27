@@ -78,27 +78,44 @@ router.post("/answer/:id/vote", requireAuth, async (req, res, next) => {
   try {
     const answerId = req.params.id;
     const userId = req.user!.sub;
-    const existing = await prisma.answerVote.findUnique({
-      where: { answerId_userId: { answerId, userId } },
-    });
-    if (existing) {
-      const result = await prisma.$transaction([
-        prisma.answerVote.delete({ where: { id: existing.id } }),
-        prisma.productAnswer.update({
+    // Wrap read+write in an interactive tx so two concurrent vote requests
+    // from the same user can't both pass the `findUnique` check and then
+    // both attempt a create (P2002 → unhandled 500). Race second-tx still
+    // can hit P2002 — caught and treated as idempotent (vote already
+    // counted by the racing request).
+    try {
+      const out = await prisma.$transaction(async (tx) => {
+        const existing = await tx.answerVote.findUnique({
+          where: { answerId_userId: { answerId, userId } },
+        });
+        if (existing) {
+          await tx.answerVote.delete({ where: { id: existing.id } });
+          const a = await tx.productAnswer.update({
+            where: { id: answerId },
+            data: { upvotes: { decrement: 1 } },
+          });
+          return { upvoted: false, upvotes: a.upvotes };
+        }
+        await tx.answerVote.create({ data: { answerId, userId } });
+        const a = await tx.productAnswer.update({
           where: { id: answerId },
-          data: { upvotes: { decrement: 1 } },
-        }),
-      ]);
-      return res.json({ upvoted: false, upvotes: result[1].upvotes });
+          data: { upvotes: { increment: 1 } },
+        });
+        return { upvoted: true, upvotes: a.upvotes };
+      });
+      return res.json(out);
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "P2002") {
+        // Concurrent insert won the race; current state is "voted".
+        const a = await prisma.productAnswer.findUnique({
+          where: { id: answerId },
+          select: { upvotes: true },
+        });
+        return res.json({ upvoted: true, upvotes: a?.upvotes ?? 0 });
+      }
+      throw err;
     }
-    const result = await prisma.$transaction([
-      prisma.answerVote.create({ data: { answerId, userId } }),
-      prisma.productAnswer.update({
-        where: { id: answerId },
-        data: { upvotes: { increment: 1 } },
-      }),
-    ]);
-    res.json({ upvoted: true, upvotes: result[1].upvotes });
   } catch (e) {
     next(e);
   }
