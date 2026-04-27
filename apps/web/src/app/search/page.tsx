@@ -1,8 +1,13 @@
 import ProductCard from "@/components/ProductCard";
 import { api } from "@/lib/api";
+import { getPageSeo } from "@/lib/seo";
 import type { Product } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  return await getPageSeo("search");
+}
 
 interface Props {
   searchParams: Record<string, string | undefined>;

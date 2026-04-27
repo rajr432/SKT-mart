@@ -2,9 +2,14 @@ import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
 import FlashDealTimer from "@/components/FlashDealTimer";
 import { api, discountPercent } from "@/lib/api";
+import { getPageSeo } from "@/lib/seo";
 import type { Product } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  return await getPageSeo("deals");
+}
 
 export default async function DealsPage() {
   const { items: products } = await api<{ items: Product[] }>(

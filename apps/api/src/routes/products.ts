@@ -18,11 +18,20 @@ router.get("/", async (req, res, next) => {
       rating,
       fAssured,
       sort,
+      ids,
       page = "1",
       limit = "24",
     } = req.query as Record<string, string | undefined>;
 
     const where: Prisma.ProductWhereInput = { published: true };
+    if (ids) {
+      const list = ids.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 60);
+      if (list.length === 0) {
+        res.json({ items: [], sponsored: [], total: 0, page: 1, limit: 0 });
+        return;
+      }
+      where.id = { in: list };
+    }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: "insensitive" } },

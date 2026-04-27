@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { getPageSeo } from "@/lib/seo";
 import type { Category } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  return await getPageSeo("categories");
+}
 
 const ICONS: Record<string, string> = {
   mobiles: "📱",

@@ -1,4 +1,9 @@
 import Link from "next/link";
+import { getPageSeo } from "@/lib/seo";
+
+export async function generateMetadata() {
+  return await getPageSeo("brands");
+}
 
 const BRANDS = [
   { name: "Samsung", tag: "Electronics", color: "from-blue-500 to-indigo-600" },

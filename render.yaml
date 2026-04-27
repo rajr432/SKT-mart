@@ -37,3 +37,8 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # Shared secret for cron endpoints (e.g. /api/abandoned-cart/run).
+      # Auto-generated; copy this value into your external scheduler
+      # (cron-job.org / GitHub Actions schedule / UptimeRobot heartbeat).
+      - key: CRON_SECRET
+        generateValue: true

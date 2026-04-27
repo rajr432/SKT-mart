@@ -7,13 +7,20 @@ import BrandStrip from "@/components/BrandStrip";
 import Testimonials from "@/components/Testimonials";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import RecentlyViewed from "@/components/RecentlyViewed";
+import HomepageCollections from "@/components/HomepageCollections";
 import FestivalBanner from "@/components/FestivalBanner";
 import CouponCopyStrip from "@/components/CouponCopyStrip";
 import { api, discountPercent } from "@/lib/api";
 import type { Banner, Category, Product } from "@/lib/types";
 
+import { getPageSeo } from "@/lib/seo";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export async function generateMetadata() {
+  return await getPageSeo("home");
+}
 
 const CAT_EMOJI: Record<string, string> = {
   electronics: "📱",
@@ -219,6 +226,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Admin-curated homepage collections (editable via /admin/site-content) */}
+      <HomepageCollections />
 
       {/* Recently viewed — personalised when logged in */}
       <RecentlyViewed />

@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import MobileDrawer from "./MobileDrawer";
 import VoiceSearch from "./VoiceSearch";
 import DarkModeToggle from "./DarkModeToggle";
+import CurrencyMenu from "./CurrencyMenu";
 
 export default function Header() {
   const { user, token, logout } = useAuth();
@@ -190,6 +191,7 @@ export default function Header() {
         </form>
 
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
+          <CurrencyMenu />
           <DarkModeToggle />
           {user ? (
             <div className="relative group">
