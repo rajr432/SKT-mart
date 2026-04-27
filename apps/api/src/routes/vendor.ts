@@ -206,7 +206,25 @@ router.post("/pay-registration/razorpay/confirm", requireAuth, async (req, res, 
     // Razorpay and ensure it meets the configured vendor fee.
     const rz = getRazorpay();
     if (!rz) throw new HttpError(503, "Payment gateway not configured");
+    // Cross-flow replay guard (mirror of wallet.ts): fetch the Razorpay
+    // order and verify its notes identify this flow + this vendor. Without
+    // this an attacker could replay a valid (orderId, paymentId, signature)
+    // from any other Razorpay flow on the merchant (e.g. wallet recharge,
+    // a different vendor's registration) and bypass the registration fee
+    // by activating their own vendor account on someone else's payment.
+    const userIdForReplay = req.user!.sub;
+    const vendorForReplay = await prisma.vendor.findUnique({
+      where: { userId: userIdForReplay },
+      select: { id: true },
+    });
+    if (!vendorForReplay) throw new HttpError(404, "Apply as vendor first");
+    const rzOrder = await rz.orders.fetch(body.razorpayOrderId);
+    const notes = (rzOrder?.notes ?? {}) as { kind?: string; vendorId?: string };
+    if (notes.kind !== "VENDOR_REGISTRATION" || notes.vendorId !== vendorForReplay.id)
+      throw new HttpError(400, "Order does not belong to this vendor registration");
     const payment = await rz.payments.fetch(body.razorpayPaymentId);
+    if (payment.order_id !== body.razorpayOrderId)
+      throw new HttpError(400, "Payment does not belong to this order");
     const amountPaise = typeof payment.amount === "number"
       ? payment.amount
       : parseInt(String(payment.amount), 10);

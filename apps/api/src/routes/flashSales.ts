@@ -90,7 +90,21 @@ const createSchema = flashSaleBase
   )
   .refine((b) => new Date(b.endAt) > new Date(b.startAt), "endAt must be after startAt");
 
-const patchSchema = flashSaleBase.partial();
+// Patch schema: explicit subset of editable fields. `productId` is intentionally
+// omitted — relinking a live flash sale to a different product is a foot-gun
+// (would silently rewrite which product gets the discount; admin should delete
+// + recreate). `flashSaleBase.partial()` previously also dropped both `.refine`
+// validators (date order + discount-required), which we re-enforce after
+// merging with the existing row below.
+const patchSchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  discountPct: z.number().min(0).max(100).nullable().optional(),
+  priceOverride: z.number().int().min(0).nullable().optional(),
+  startAt: z.string().datetime().optional(),
+  endAt: z.string().datetime().optional(),
+  stock: z.number().int().min(0).nullable().optional(),
+  active: z.boolean().optional(),
+});
 
 router.post("/", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
   try {
@@ -125,10 +139,38 @@ router.post("/", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
 router.patch("/:id", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
   try {
     const body = patchSchema.parse(req.body);
+    const existing = await prisma.flashSale.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: "Flash sale not found" });
+      return;
+    }
+    // Re-validate post-merge invariants the .partial() patch dropped:
+    //   - endAt strictly after startAt (otherwise sale is "live for 0s" or
+    //     negative, surfacing as broken UI on the storefront).
+    //   - at least one of {discountPct, priceOverride} is set, else the sale
+    //     applies no discount and is meaningless.
+    const nextStart = body.startAt ? new Date(body.startAt) : existing.startAt;
+    const nextEnd = body.endAt ? new Date(body.endAt) : existing.endAt;
+    if (nextEnd <= nextStart) {
+      res.status(400).json({ error: "endAt must be after startAt" });
+      return;
+    }
+    const nextDiscountPct =
+      body.discountPct === undefined ? existing.discountPct : body.discountPct;
+    const nextPriceOverride =
+      body.priceOverride === undefined ? existing.priceOverride : body.priceOverride;
+    if (nextDiscountPct == null && nextPriceOverride == null) {
+      res.status(400).json({ error: "Either discountPct or priceOverride is required" });
+      return;
+    }
     const row = await prisma.flashSale.update({
       where: { id: req.params.id },
       data: {
-        ...body,
+        name: body.name,
+        discountPct: body.discountPct,
+        priceOverride: body.priceOverride,
+        stock: body.stock,
+        active: body.active,
         startAt: body.startAt ? new Date(body.startAt) : undefined,
         endAt: body.endAt ? new Date(body.endAt) : undefined,
       },
