@@ -85,8 +85,17 @@ export default async function HomePage() {
               href={`/category/${c.slug}`}
               className="tilt-card flex flex-col items-center gap-1 min-w-[88px] p-2 rounded-lg hover:text-brand"
             >
-              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 via-yellow-50 to-pink-50 border border-gray-200 flex items-center justify-center text-3xl shadow-sm">
-                {CAT_EMOJI[c.slug] ?? c.name[0]}
+              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-50 via-yellow-50 to-pink-50 border border-gray-200 flex items-center justify-center text-3xl shadow-sm overflow-hidden">
+                {c.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.image}
+                    alt={c.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  CAT_EMOJI[c.slug] ?? c.name[0]
+                )}
               </div>
               <span className="text-xs font-medium text-center">{c.name}</span>
             </Link>
@@ -119,12 +128,12 @@ export default async function HomePage() {
       </div>
 
       {banners[0] && (
-        <Link href={banners[0].link ?? "#"} className="block card overflow-hidden tilt-card">
+        <Link href={banners[0].link ?? "#"} className="block card overflow-hidden tilt-card bg-gray-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={banners[0].image}
             alt={banners[0].title}
-            className="w-full h-44 sm:h-64 object-cover"
+            className="w-full h-auto max-h-[420px] object-contain mx-auto"
           />
         </Link>
       )}
@@ -177,9 +186,13 @@ export default async function HomePage() {
       {banners[1] && (
         <div className="grid sm:grid-cols-2 gap-4">
           {banners.slice(1, 3).map((b) => (
-            <Link key={b.id} href={b.link ?? "#"} className="card overflow-hidden tilt-card">
+            <Link key={b.id} href={b.link ?? "#"} className="card overflow-hidden tilt-card bg-gray-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={b.image} alt={b.title} className="w-full h-40 object-cover" />
+              <img
+                src={b.image}
+                alt={b.title}
+                className="w-full h-auto max-h-[280px] object-contain mx-auto"
+              />
             </Link>
           ))}
         </div>

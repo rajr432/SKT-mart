@@ -546,9 +546,9 @@ router.delete("/banners/:id", async (req, res, next) => {
 const categorySchema = z.object({
   name: z.string().min(2),
   slug: z.string().min(2),
-  description: z.string().optional(),
-  image: z.string().optional(),
-  parentId: z.string().optional(),
+  description: z.string().nullable().optional(),
+  image: z.string().nullable().optional(),
+  parentId: z.string().nullable().optional(),
 });
 
 router.post("/categories", async (req, res, next) => {

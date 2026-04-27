@@ -25,6 +25,8 @@ export default function GoogleSignIn({ next = "/" }: Props) {
     );
   }
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
   const onSuccess = async (cred: CredentialResponse) => {
     setErr(null);
     const idToken = cred.credential;
@@ -54,7 +56,11 @@ export default function GoogleSignIn({ next = "/" }: Props) {
       <div className="flex justify-center">
         <GoogleLogin
           onSuccess={onSuccess}
-          onError={() => setErr("Google sign-in failed")}
+          onError={() =>
+            setErr(
+              `Google sign-in blocked. Add this site (${origin || "your domain"}) to "Authorized JavaScript origins" in Google Cloud Console.`,
+            )
+          }
           useOneTap={false}
           theme="outline"
           size="large"
@@ -62,7 +68,25 @@ export default function GoogleSignIn({ next = "/" }: Props) {
           text="continue_with"
         />
       </div>
-      {err && <p className="text-red-600 text-xs text-center">{err}</p>}
+      {err && (
+        <div className="text-red-600 text-xs text-center space-y-1">
+          <p>{err}</p>
+          {err.toLowerCase().includes("blocked") || err.toLowerCase().includes("origin") ? (
+            <p className="text-gray-500">
+              Admin: open{" "}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Google Cloud Console
+              </a>{" "}
+              → OAuth Client → Authorized origins → add {origin}.
+            </p>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

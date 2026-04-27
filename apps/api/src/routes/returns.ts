@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { ReturnStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { creditUserWallet } from "../lib/wallet";
@@ -127,11 +128,39 @@ const transitionSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED", "PICKED_UP", "RECEIVED", "REFUNDED", "REPLACED"]),
 });
 
+// Forward-only return lifecycle. Without this map an admin could walk a
+// return REFUNDED → RECEIVED, double-dipping by both crediting the customer's
+// wallet (line ~159) AND restocking inventory (line ~179) — vendor regains
+// sellable stock while platform has already paid out the refund. Mirrors
+// the STATUS_RANK pattern used for orders in admin.ts/vendor.ts.
+const RETURN_RANK: Record<string, number> = {
+  REQUESTED: 0,
+  APPROVED: 1,
+  REJECTED: 1, // terminal early-exit
+  PICKED_UP: 2,
+  RECEIVED: 3,
+  REFUNDED: 4, // terminal
+  REPLACED: 4, // terminal
+};
+const TERMINAL_RETURN_STATUSES = new Set(["REJECTED", "REFUNDED", "REPLACED"]);
+
 router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
   try {
     const { status } = transitionSchema.parse(req.body);
     const r = await prisma.return.findUnique({ where: { id: req.params.id }, include: { items: true } });
     if (!r) return res.status(404).json({ error: "Not found" });
+
+    if (TERMINAL_RETURN_STATUSES.has(r.status)) {
+      throw new HttpError(400, `Return is already ${r.status}; no further transitions allowed.`);
+    }
+    const currentRank = RETURN_RANK[r.status] ?? -1;
+    const targetRank = RETURN_RANK[status] ?? -1;
+    if (targetRank <= currentRank) {
+      throw new HttpError(
+        400,
+        `Cannot move return from ${r.status} to ${status} (forward-only).`,
+      );
+    }
 
     // Atomic: flip the Return row to REFUNDED and credit the user's wallet in
     // the same transaction. If the wallet credit throws we roll back the status
@@ -139,17 +168,16 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
     // two independent writes, so a transient failure after the status update
     // would leave a "REFUNDED" return with no corresponding wallet credit.
     const updated = await prisma.$transaction(async (tx) => {
-      // REFUNDED / REPLACED are terminal states — never re-enter. Using
-      // `notIn: ["REFUNDED","REPLACED"]` as the guard (instead of `not: status`)
-      // prevents a cycle like REQUESTED → REFUNDED → RECEIVED → REFUNDED from
-      // ever crediting the wallet twice. For non-terminal transitions we fall
-      // back to "must differ from current" to stay idempotent on retries.
-      const terminalGuard =
-        status === "REFUNDED" || status === "REPLACED"
-          ? { status: { notIn: ["REFUNDED" as const, "REPLACED" as const] } }
-          : { status: { not: status } };
+      // CAS guard at DB level: only flip if the row is still in a strictly
+      // lower-rank state. Combined with the precheck above this prevents a
+      // racing transition (e.g. REFUNDED already applied by another admin)
+      // from regressing the row.
+      const allowedFromStatuses = (Object.entries(RETURN_RANK)
+        .filter(([, rank]) => rank < targetRank)
+        .map(([s]) => s)
+        .filter((s) => !TERMINAL_RETURN_STATUSES.has(s))) as ReturnStatus[];
       const claim = await tx.return.updateMany({
-        where: { id: r.id, ...terminalGuard },
+        where: { id: r.id, status: { in: allowedFromStatuses } },
         data: { status },
       });
       if (claim.count === 0) {

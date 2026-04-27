@@ -11,7 +11,6 @@ import LiveChatWidget from "@/components/LiveChatWidget";
 import ScrollToTop from "@/components/ScrollToTop";
 import AppUpdateBanner from "@/components/AppUpdateBanner";
 import OfferStrip from "@/components/OfferStrip";
-import CompareDrawer from "@/components/CompareDrawer";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import ExitIntentPopup from "@/components/ExitIntentPopup";
 
@@ -72,7 +71,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LiveChatWidget />
           <ScrollToTop />
           <AppUpdateBanner />
-          <CompareDrawer />
           <ExitIntentPopup />
         </Providers>
       </body>

@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Product } from "@/lib/types";
 import { discountPercent, formatPaise } from "@/lib/api";
 import ShareButton from "./ShareButton";
-import { addToCompare, isInCompare, removeFromCompare } from "./CompareDrawer";
 
 const QuickView = dynamic(() => import("./QuickView"), { ssr: false });
 
@@ -14,31 +13,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const img = product.images?.[0]?.url ?? "https://picsum.photos/seed/sktfallback/600/600";
   const off = discountPercent(product.mrp, product.price);
   const showCommission = product.price >= 49900;
-  const [comparing, setComparing] = useState(false);
   const [quickView, setQuickView] = useState(false);
-
-  useEffect(() => {
-    setComparing(isInCompare(product.id));
-    const onChange = () => setComparing(isInCompare(product.id));
-    window.addEventListener("skt:compare:change", onChange);
-    return () => window.removeEventListener("skt:compare:change", onChange);
-  }, [product.id]);
-
-  const toggleCompare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (comparing) {
-      removeFromCompare(product.id);
-    } else {
-      addToCompare({
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
-        image: img,
-        price: product.price,
-      });
-    }
-  };
 
   return (
     <Link
@@ -68,18 +43,6 @@ export default function ProductCard({ product }: { product: Product }) {
           className="text-xs px-1.5 py-0.5 rounded shadow border bg-white text-gray-700 border-gray-200 hover:border-brand hover:text-brand"
         >
           👁
-        </button>
-        <button
-          onClick={toggleCompare}
-          aria-label={comparing ? "Remove from compare" : "Add to compare"}
-          title={comparing ? "Remove from compare" : "Add to compare"}
-          className={`text-xs px-1.5 py-0.5 rounded shadow border ${
-            comparing
-              ? "bg-brand text-white border-brand"
-              : "bg-white text-gray-700 border-gray-200 hover:border-brand hover:text-brand"
-          }`}
-        >
-          {comparing ? "✓" : "⇄"}
         </button>
       </div>
       {quickView && (
