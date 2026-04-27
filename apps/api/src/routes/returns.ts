@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { creditUserWallet } from "../lib/wallet";
 import { notify } from "../lib/notify";
 import { generateOrderNumber } from "../lib/order";
+import { getSettings } from "../lib/settings";
 import { HttpError } from "../middleware/error";
 
 const router = Router();
@@ -30,6 +31,24 @@ router.post("/", requireAuth, async (req, res, next) => {
     });
     if (!order || order.userId !== req.user!.sub) return res.status(404).json({ error: "Not found" });
     if (order.status !== "DELIVERED") return res.status(400).json({ error: "Only delivered orders can be returned" });
+
+    // Enforce admin-configured return window. Without this the admin's
+    // `returnWindowDays` setting (exposed on /api/settings/public and
+    // editable from /admin/settings) is silently ignored — a customer
+    // could request a return on an order delivered months ago. We use
+    // `order.updatedAt` as the delivery timestamp because the order is
+    // last updated when status flips to DELIVERED in vendor.ts (delivery
+    // OTP verify).
+    const settings = await getSettings();
+    const windowDays = settings.returnWindowDays ?? 7;
+    if (windowDays > 0) {
+      const ageMs = Date.now() - new Date(order.updatedAt).getTime();
+      if (ageMs > windowDays * 24 * 60 * 60 * 1000) {
+        return res
+          .status(400)
+          .json({ error: `Return window of ${windowDays} days has expired` });
+      }
+    }
 
     // Prorate the order-level discount (coupons etc.) across returned items.
     // The sum of order.items[].price * quantity is the pre-coupon item total;
@@ -165,6 +184,17 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
       throw new HttpError(
         400,
         `Cannot move return from ${r.status} to ${status} (forward-only).`,
+      );
+    }
+    // RECEIVED is the single point where physical goods are confirmed back
+    // in the warehouse and inventory is restocked (lines below). Allowing
+    // PICKED_UP → REFUNDED (or APPROVED → REFUNDED) would credit the
+    // customer's wallet without ever restocking — permanent inventory loss.
+    // Force admin to mark RECEIVED first.
+    if ((status === "REFUNDED" || status === "REPLACED") && r.status !== "RECEIVED") {
+      throw new HttpError(
+        400,
+        `Mark return as RECEIVED before ${status.toLowerCase()} (so inventory is restocked).`,
       );
     }
 
