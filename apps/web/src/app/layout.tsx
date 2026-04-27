@@ -3,16 +3,10 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import InstallPrompt from "@/components/InstallPrompt";
-import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import Providers from "@/components/Providers";
-import PushSubscribePrompt from "@/components/PushSubscribePrompt";
-import LiveChatWidget from "@/components/LiveChatWidget";
-import ScrollToTop from "@/components/ScrollToTop";
-import AppUpdateBanner from "@/components/AppUpdateBanner";
 import OfferStrip from "@/components/OfferStrip";
 import AnnouncementBar from "@/components/AnnouncementBar";
-import ExitIntentPopup from "@/components/ExitIntentPopup";
+import DeferredWidgets from "@/components/DeferredWidgets";
 
 export const metadata: Metadata = {
   title: {
@@ -57,7 +51,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen flex flex-col pb-[64px] md:pb-0">
+      <body className="min-h-screen flex flex-col">
         <Providers>
           <AnnouncementBar />
           <OfferStrip />
@@ -65,13 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1">{children}</main>
           <Footer />
           <BottomNav />
-          <InstallPrompt />
-          <ServiceWorkerRegistrar />
-          <PushSubscribePrompt />
-          <LiveChatWidget />
-          <ScrollToTop />
-          <AppUpdateBanner />
-          <ExitIntentPopup />
+          <DeferredWidgets />
         </Providers>
       </body>
     </html>

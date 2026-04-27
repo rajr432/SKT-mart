@@ -4,7 +4,7 @@ import ProductCard from "@/components/ProductCard";
 import { api } from "@/lib/api";
 import type { Product } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 interface StoreData {
   vendor: {

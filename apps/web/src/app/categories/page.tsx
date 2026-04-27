@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { getPageSeo } from "@/lib/seo";
 import type { Category } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata() {
   return await getPageSeo("categories");

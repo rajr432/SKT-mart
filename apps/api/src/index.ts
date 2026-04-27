@@ -250,3 +250,19 @@ const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
   console.log(`[skt-mart-api] listening on http://localhost:${port}`);
 });
+
+// Self keep-alive: Render free-tier sleeps after 15 min idle, causing
+// 30-50s cold starts for the next user. Ping our own /health every 10 min
+// so the dyno stays warm. SELF_URL is the public URL (set on Render to
+// https://skt-mart-api.onrender.com); skipped in dev (NODE_ENV !== production).
+if (process.env.NODE_ENV === "production" && process.env.SELF_URL) {
+  const selfUrl = process.env.SELF_URL.replace(/\/+$/, "");
+  setInterval(
+    () => {
+      fetch(`${selfUrl}/health`, { method: "GET" })
+        .then((r) => r.ok || console.warn("[keep-alive] non-OK", r.status))
+        .catch((e) => console.warn("[keep-alive] error", e?.message));
+    },
+    10 * 60 * 1000,
+  );
+}

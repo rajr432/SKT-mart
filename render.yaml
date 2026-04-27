@@ -42,3 +42,9 @@ services:
       # (cron-job.org / GitHub Actions schedule / UptimeRobot heartbeat).
       - key: CRON_SECRET
         generateValue: true
+      # Public URL of this service. Used by the in-process keep-alive
+      # ping (every 10 min) so the Render free-tier dyno never sleeps
+      # and the next user gets an instant response instead of a 30-50s
+      # cold start.
+      - key: SELF_URL
+        value: https://skt-mart-api.onrender.com

@@ -221,3 +221,59 @@ body {
   50% { opacity: 0.7; }
 }
 .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+/* ============ Mobile-friendly polish ============ */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(40, 116, 240, 0.15);
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+@media (max-width: 640px) {
+  /* Larger tap targets on mobile */
+  button, a, [role="button"] {
+    min-height: 36px;
+  }
+  /* Disable expensive hover transforms on touch devices */
+  .tilt-card:hover,
+  .card3d:hover,
+  .cat-tilt:hover {
+    transform: none !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+  }
+}
+/* iOS safe-area for bottom nav */
+.bottom-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@supports (padding: max(0px)) {
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 768px) {
+    body {
+      padding-bottom: 0;
+    }
+  }
+}
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Image loading polish — prevent CLS */
+img {
+  max-width: 100%;
+  height: auto;
+}
