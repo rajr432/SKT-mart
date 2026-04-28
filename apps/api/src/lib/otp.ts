@@ -17,9 +17,13 @@ export async function createOtp(target: string, userId?: string): Promise<string
   const isEmail = target.includes("@");
   if (isEmail) {
     try {
+      // Subject deliberately does NOT include the code itself — email
+      // subjects render in lock-screen / desktop notification banners and
+      // mailbox previews without the user opening the message, weakening
+      // the OTP as a second factor. The code lives only in the body.
       await sendEmail(
         target,
-        `Your SKT Mart verification code: ${code}`,
+        `Your SKT Mart verification code`,
         renderOtpEmail(code),
       );
     } catch (e) {

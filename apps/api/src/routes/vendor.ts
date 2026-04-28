@@ -925,12 +925,26 @@ router.patch("/coupons/:id", async (req, res, next) => {
   try {
     const vendorId = await resolveVendorId(req.user!.sub);
     const data = vendorCouponPatchSchema.parse(req.body);
-    if (data.type === "PERCENT" && typeof data.value === "number" && data.value > 90)
-      throw new HttpError(400, "Percent coupons capped at 90%");
-    // updateMany + count-check enforces scope at the DB level so a crafted
-    // request body cannot reach another vendor's (or a platform) coupon.
-    const r = await prisma.coupon.updateMany({
+    // 90% cap must be checked against the *merged* row, not just the patch
+    // payload, otherwise a vendor can bypass it in two steps:
+    //   1. PATCH { value: 95 } on a FLAT coupon — guard skipped because
+    //      data.type is undefined.
+    //   2. PATCH { type: "PERCENT" } — guard skipped because data.value is
+    //      undefined; coupon is now PERCENT/95.
+    // Even single-step PATCH { value: 95 } on an existing PERCENT coupon
+    // bypasses the prior implementation. Fetch the row first, scoped to
+    // this vendor so the same query also doubles as the existence /
+    // ownership check (no separate updateMany needed).
+    const existing = await prisma.coupon.findFirst({
       where: { id: req.params.id, vendorId },
+    });
+    if (!existing) throw new HttpError(404, "Coupon not found");
+    const effectiveType = data.type ?? existing.type;
+    const effectiveValue = data.value ?? existing.value;
+    if (effectiveType === "PERCENT" && effectiveValue > 90)
+      throw new HttpError(400, "Percent coupons capped at 90%");
+    const coupon = await prisma.coupon.update({
+      where: { id: existing.id },
       data: {
         ...data,
         expiresAt:
@@ -941,8 +955,6 @@ router.patch("/coupons/:id", async (req, res, next) => {
               : null,
       },
     });
-    if (r.count === 0) throw new HttpError(404, "Coupon not found");
-    const coupon = await prisma.coupon.findUnique({ where: { id: req.params.id } });
     res.json({ coupon });
   } catch (e) {
     next(e);
