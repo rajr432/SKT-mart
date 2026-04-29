@@ -217,8 +217,15 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
         data: { status },
       });
       if (claim.count === 0) {
-        // Either already terminal, or already at requested status — no-op.
-        return tx.return.findUniqueOrThrow({ where: { id: r.id } });
+        // Pre-checks (terminal-state + forward-only rank) already passed,
+        // so a zero-row CAS here means a concurrent admin won the race
+        // and moved this return between our read and write. Surface 409
+        // so the calling admin re-reads current state instead of seeing
+        // a misleading 200 with stale status.
+        throw new HttpError(
+          409,
+          "Return status changed concurrently. Reload and try again.",
+        );
       }
       if (status === "REFUNDED" && (r.refundMode === "WALLET" || r.refundMode === "SOURCE")) {
         await creditUserWallet(

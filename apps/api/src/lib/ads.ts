@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 type AdEventType = "IMPRESSION" | "CLICK" | "CONVERSION";
@@ -142,18 +143,20 @@ export async function getSponsoredProductIds(
   // Exclude campaigns whose spent ≥ budget. Without this filter, campaigns
   // that have exhausted their budget but haven't been lazily flipped to
   // COMPLETED still show up here and every page render fires a pointless
-  // chargeAndRecord tx that immediately throws "Budget exhausted". Prisma
-  // supports column-to-column comparison via `prisma.<model>.fields`.
-  const where: Record<string, unknown> = {
+  // chargeAndRecord tx that immediately throws "Budget exhausted". Use the
+  // properly typed `Prisma.AdCampaignWhereInput` so the FieldRef value
+  // (`prisma.adCampaign.fields.budgetPaise`) is preserved as a column
+  // reference at query time — a `Record<string, unknown>` + `as never`
+  // cast erased the FieldRef brand and risked Prisma serialising it as a
+  // literal JSON value, silently breaking the column-to-column compare.
+  const where: Prisma.AdCampaignWhereInput = {
     status: "ACTIVE",
     spentPaise: { lt: prisma.adCampaign.fields.budgetPaise },
     OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+    ...(categoryId ? { product: { categoryId } } : {}),
   };
-  if (categoryId) {
-    where.product = { categoryId };
-  }
   const camps = await prisma.adCampaign.findMany({
-    where: where as never,
+    where,
     orderBy: { bidPaise: "desc" },
     take: limit,
     select: { productId: true },
