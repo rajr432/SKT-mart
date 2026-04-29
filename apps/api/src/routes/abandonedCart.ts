@@ -1,7 +1,22 @@
+import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { notify } from "../lib/notify";
 import { HttpError } from "../middleware/error";
+
+// Constant-time secret compare. Plain `!==` short-circuits on the first
+// differing byte and leaks per-byte latency to remote callers — combined
+// with the success response leaking candidate user emails + cart contents,
+// this would let an attacker iteratively brute-force CRON_SECRET. Mirrors
+// the timingSafeEqual + length pre-check pattern used in razorpay.ts.
+function safeEqualSecret(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
+  } catch {
+    return false;
+  }
+}
 
 // Abandoned-cart recovery. This endpoint is designed to be hit by an
 // external scheduler (Render Cron / GitHub Actions / a self-ping) every
@@ -30,7 +45,8 @@ router.get("/run", async (req, res, next) => {
   try {
     const expected = process.env.CRON_SECRET;
     if (!expected) throw new HttpError(503, "CRON_SECRET not configured");
-    if (req.header("x-cron-secret") !== expected) throw new HttpError(401, "Unauthorized");
+    const provided = req.header("x-cron-secret") ?? "";
+    if (!safeEqualSecret(provided, expected)) throw new HttpError(401, "Unauthorized");
     const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true";
 
     const now = Date.now();

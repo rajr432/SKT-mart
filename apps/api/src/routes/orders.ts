@@ -233,7 +233,7 @@ router.post("/", requireAuth, async (req, res, next) => {
            WHERE code = $1 AND ("usageLimit" IS NULL OR "usedCount" < "usageLimit")`,
           body.couponCode,
         );
-        if (!affected) {
+        if (affected === 0) {
           throw new HttpError(400, "Coupon usage limit reached");
         }
       }
