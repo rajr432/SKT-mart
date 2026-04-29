@@ -132,7 +132,7 @@ export default async function HomePage() {
           <img
             src={banners[0].image}
             alt={banners[0].title}
-            className="w-full h-auto max-h-[420px] object-contain mx-auto"
+            className="w-full h-auto block"
           />
         </Link>
       )}
@@ -190,7 +190,7 @@ export default async function HomePage() {
               <img
                 src={b.image}
                 alt={b.title}
-                className="w-full h-auto max-h-[280px] object-contain mx-auto"
+                className="w-full h-auto block"
               />
             </Link>
           ))}

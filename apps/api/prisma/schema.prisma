@@ -352,6 +352,12 @@ model Product {
   @@index([categoryId])
   @@index([published])
   @@index([brand])
+  // Hot homepage / category / search lists are paginated by recency or rating
+  // and filtered by `published`. Without these composite indexes Postgres
+  // resorts to seq-scan + sort under load — fatal at 100k concurrent users.
+  @@index([published, createdAt])
+  @@index([published, rating])
+  @@index([categoryId, published, createdAt])
 }
 
 model ProductVariant {
@@ -566,6 +572,11 @@ model Order {
 
   @@index([userId])
   @@index([status])
+  // Customer order history paginates by recency, often filtered by status.
+  // Composite index avoids seq-scan when a customer has many orders.
+  @@index([userId, placedAt])
+  @@index([userId, status, placedAt])
+  @@index([paymentStatus, placedAt])
 }
 
 model OrderItem {
@@ -593,6 +604,9 @@ model OrderItem {
 
   @@index([orderId])
   @@index([vendorId])
+  // Vendor order list paginates by status + recency. Composite avoids seq-scan.
+  @@index([vendorId, status])
+  @@index([productId])
 }
 
 model Payment {

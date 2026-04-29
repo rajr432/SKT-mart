@@ -58,7 +58,32 @@ const app = express();
 // refuses to run unless trust proxy is explicitly configured anyway.
 app.set("trust proxy", 1);
 
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// Tighten security headers. HSTS forces HTTPS for 6 months (only effective
+// when the deploy is already on HTTPS — Render/Fly/Vercel always are).
+// crossOriginResourcePolicy disabled so /uploads (images) can be embedded by
+// the storefront origin. CSP for the API is conservative — JSON-only API,
+// no inline JS/CSS executed by browsers from these responses (root landing
+// HTML sets its own narrow inline-style allowance via helmet defaults).
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "script-src": ["'self'"],
+        "connect-src": ["'self'", "https:"],
+        "frame-ancestors": ["'none'"],
+      },
+    },
+    hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  }),
+);
+app.disable("x-powered-by");
 app.use(
   cors({
     // `||` (not `??`) so an empty / whitespace-only env var falls back to
@@ -96,15 +121,37 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
+// Global API limiter — protects against generic flood. Authenticated callers
+// hitting normal endpoints comfortably stay under this; runaway scrapers /
+// botnets get cut off.
 app.use(
   "/api",
   rateLimit({
     windowMs: 60_000,
-    max: 300,
+    max: 600,
     standardHeaders: true,
     legacyHeaders: false,
   }),
 );
+
+// Strict per-route limiters for credential & OTP endpoints. These are the
+// brute-force surfaces (password guessing, OTP enumeration, reset-token
+// harvesting). 10 / 5 min per IP is well above any human flow but stops
+// automated attempts cold. `/api/auth/google` is excluded because it carries
+// a Google-issued ID token already vetted by their infra.
+const authStrictLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in a few minutes." },
+});
+app.use("/api/auth/login", authStrictLimiter);
+app.use("/api/auth/register", authStrictLimiter);
+app.use("/api/auth/forgot-password", authStrictLimiter);
+app.use("/api/auth/reset-password", authStrictLimiter);
+app.use("/api/auth/send-otp", authStrictLimiter);
+app.use("/api/auth/verify-otp", authStrictLimiter);
 
 app.use(
   "/uploads",
