@@ -135,6 +135,12 @@ export default async function HomePage() {
             src={banners[0].image}
             alt={banners[0].title}
             className="w-full h-auto block"
+            // First banner is above-the-fold — tell the browser to fetch it
+            // eagerly + at high priority so LCP paints fast on cold loads.
+            loading="eager"
+            // @ts-expect-error fetchpriority is a valid HTML attribute, missing in current React types
+            fetchpriority="high"
+            decoding="async"
           />
         </Link>
       )}

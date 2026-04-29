@@ -42,7 +42,7 @@ export default function Hero3D() {
     <section
       className={`hero-3d relative overflow-hidden rounded-xl bg-gradient-to-br ${s.grad} text-white transition-[background] duration-700`}
     >
-      <div className="container-page relative py-10 sm:py-16 grid sm:grid-cols-[1.3fr_1fr] items-center gap-6">
+      <div className="container-page relative py-6 sm:py-16 grid sm:grid-cols-[1.3fr_1fr] items-center gap-6">
         <div className="tilt-in space-y-4 relative z-10">
           <span className="inline-block bg-white/20 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase">
             {s.tag}
@@ -79,8 +79,8 @@ export default function Hero3D() {
           </div>
         </div>
 
-        {/* 3D floating cube with logo faces */}
-        <div className="relative h-48 sm:h-72 flex items-center justify-center">
+        {/* 3D floating cube — hidden on phones for faster paint + cleaner UI */}
+        <div className="relative h-48 sm:h-72 hidden sm:flex items-center justify-center">
           <div className="hero-cube relative w-36 h-36 sm:w-48 sm:h-48">
             {/* 6 faces of a cube */}
             {[
