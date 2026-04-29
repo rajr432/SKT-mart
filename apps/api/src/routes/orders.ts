@@ -549,6 +549,18 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
       });
       if (claim.count === 0)
         throw new HttpError(400, "Order cannot be cancelled at this stage");
+      // Propagate the cancel to child OrderItems so vendor dashboards stop
+      // showing them as PLACED/CONFIRMED, and so admin analytics that group
+      // by OrderItem.status no longer count cancelled-order items as sales.
+      // Excludes already-terminal items (defensive — pre-cancel item flow
+      // doesn't usually reach these but a future partial-cancel flow might).
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: order.id,
+          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
+        },
+        data: { status: "CANCELLED" },
+      });
       const o = await tx.order.findUniqueOrThrow({
         where: { id: order.id },
         include: { items: true },

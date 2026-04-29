@@ -387,6 +387,18 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
       });
       if (claim.count === 0)
         throw new HttpError(400, "Order already finalised, cannot cancel");
+      // Propagate the cancel to child OrderItems so vendor dashboards stop
+      // showing them as in-flight, and admin analytics (which group by
+      // OrderItem.status) no longer count cancelled-order items as sales.
+      // DELIVERED items are kept as-is — at most an admin would mark
+      // already-shipped goods as RETURNED through the returns flow.
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: order.id,
+          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
+        },
+        data: { status: "CANCELLED" },
+      });
       const o = await tx.order.findUniqueOrThrow({
         where: { id: order.id },
         include: { items: true },

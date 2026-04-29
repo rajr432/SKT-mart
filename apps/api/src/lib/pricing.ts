@@ -42,7 +42,12 @@ export async function computePrice(
       // fails this check when an admin explicitly set a future date.
       coupon.startsAt <= now &&
       (!coupon.expiresAt || coupon.expiresAt > now) &&
-      (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit)
+      (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit) &&
+      // Cheap pre-gate: scoped subtotal (per-vendor or full cart) is always
+      // ≤ sellingTotal, so if the full cart already misses the minOrder
+      // threshold the coupon cannot apply. Skipping here avoids the
+      // per-vendor product lookup below for ineligible coupons.
+      sellingTotal >= coupon.minOrder
     ) {
       // Vendor-scoped coupons apply only to the subset of lines sold by the
       // coupon's vendor. Platform-wide coupons (vendorId null) keep the
