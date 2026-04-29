@@ -4,11 +4,12 @@ import type { AppSettings } from "@/lib/types";
 
 // Server component: pulls admin-editable branding/footer/social from
 // /api/settings/public so non-engineering can edit copy without a redeploy.
+// Cached 10 min — footer copy rarely changes; cuts API hits by ~10x.
 // Falls back to sane defaults if the call fails (e.g. cold backend).
 export default async function Footer() {
-  const s = await api<Partial<AppSettings>>("/api/settings/public").catch(
-    () => ({}) as Partial<AppSettings>,
-  );
+  const s = await api<Partial<AppSettings>>("/api/settings/public", {
+    next: { revalidate: 600 },
+  }).catch(() => ({}) as Partial<AppSettings>);
   const siteName = s.siteName || "SKT Mart";
   const supportEmail = s.supportEmail || "sktmart25@gmail.com";
   const supportPhone = s.supportPhone || "1800-000-0000";

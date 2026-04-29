@@ -13,7 +13,10 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
   if (json !== undefined) h["Content-Type"] = "application/json";
   if (token) h.Authorization = `Bearer ${token}`;
 
-  // Default ISR: 60s for GET, no-store for mutations + authed reads
+  // Default ISR: 120s for unauthenticated GETs (was 60). The longer window means
+  // an upstream API cold start (Render free tier) only blocks 1 visitor every
+  // 2 min instead of every minute — perceived latency drops sharply.
+  // Mutations + authed reads still bypass cache.
   const method = (rest.method ?? "GET").toUpperCase();
   const isMutation = method !== "GET" && method !== "HEAD";
   const fetchInit: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
@@ -26,7 +29,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
   } else if (cache) {
     fetchInit.cache = cache;
   } else {
-    fetchInit.next = next ?? { revalidate: 60 };
+    fetchInit.next = next ?? { revalidate: 120 };
   }
 
   const res = await fetch(`${BASE}${path}`, fetchInit);

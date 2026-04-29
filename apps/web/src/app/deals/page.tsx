@@ -5,7 +5,7 @@ import { api, discountPercent } from "@/lib/api";
 import { getPageSeo } from "@/lib/seo";
 import type { Product } from "@/lib/types";
 
-export const revalidate = 60;
+export const revalidate = 180;
 
 export async function generateMetadata() {
   return await getPageSeo("deals");

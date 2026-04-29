@@ -15,7 +15,9 @@ import type { Banner, Category, Product } from "@/lib/types";
 
 import { getPageSeo } from "@/lib/seo";
 
-export const revalidate = 60;
+// Homepage is the most-cached surface — 5 min ISR. Admin changes (banners,
+// flash sales, hero copy) appear within 5 min without a redeploy.
+export const revalidate = 300;
 
 export async function generateMetadata() {
   return await getPageSeo("home");

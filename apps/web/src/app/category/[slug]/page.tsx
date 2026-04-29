@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import type { Category, Product } from "@/lib/types";
 import { notFound } from "next/navigation";
 
-export const revalidate = 60;
+export const revalidate = 180;
 
 export default async function CategoryPage({
   params,

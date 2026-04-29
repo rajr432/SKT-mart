@@ -19,7 +19,7 @@ import FrequentlyBoughtTogether from "@/components/FrequentlyBoughtTogether";
 import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import ProductVideo from "@/components/ProductVideo";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 // SEO metadata per product. Vendor-supplied metaTitle/metaDesc win; otherwise
 // we fall back to the product name + a brand/price-rich description so the

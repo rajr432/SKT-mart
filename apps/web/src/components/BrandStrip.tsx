@@ -9,7 +9,7 @@ type Brand = {
 async function fetchBrands(): Promise<Brand[]> {
   try {
     const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-    const res = await fetch(`${base}/api/brands`, { next: { revalidate: 60 } });
+    const res = await fetch(`${base}/api/brands`, { next: { revalidate: 600 } });
     if (!res.ok) return [];
     const data = (await res.json()) as { items?: Brand[] };
     return data.items ?? [];

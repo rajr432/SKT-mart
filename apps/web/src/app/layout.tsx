@@ -48,9 +48,27 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+// Eager DNS+TLS to the API origin so the first XHR pays no handshake cost.
+// Helps perceived "first click" latency a lot on cold visits.
+const API_ORIGIN = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_URL ?? "https://skt-mart-api.onrender.com").origin;
+  } catch {
+    return "";
+  }
+})();
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {API_ORIGIN ? (
+          <>
+            <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={API_ORIGIN} />
+          </>
+        ) : null}
+      </head>
       <body className="min-h-screen flex flex-col">
         <Providers>
           <AnnouncementBar />
