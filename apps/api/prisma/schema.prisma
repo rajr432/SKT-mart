@@ -740,6 +740,33 @@ model AppSettings {
   // — highest matching tier wins. Credited as separate BONUS txn on confirm.
   // Default: 0 (feature off until admin configures).
   walletCashbackTiers    Json     @default("[]")
+  // Branding & theme — admin-editable; storefront reads via /api/settings/public
+  // and overrides Tailwind CSS variables at runtime so colors / logo / favicon
+  // can be changed without a redeploy.
+  brandLogo              String?
+  brandFavicon           String?
+  brandPrimary           String   @default("#2874f0")
+  brandAccent            String   @default("#ff9f00")
+  brandDark              String   @default("#172337")
+  // Footer copy (legal name, address, GST). Plain text; rendered as <p>s.
+  footerAddress          String   @default("")
+  footerGstin            String   @default("")
+  footerCopyright        String   @default("© SKT Mart. All rights reserved.")
+  // Social handles (rendered as icons in the footer when non-empty).
+  socialFacebook         String?
+  socialInstagram        String?
+  socialTwitter          String?
+  socialYoutube          String?
+  socialWhatsapp         String?
+  // Payment method toggles. False hides the option at checkout entirely.
+  payRazorpayEnabled     Boolean  @default(true)
+  payWalletEnabled       Boolean  @default(true)
+  payUpiEnabled          Boolean  @default(true)
+  // Default homepage hero — when set, replaces the rotating Hero3D copy.
+  heroTitle              String?
+  heroSubtitle           String?
+  heroCtaText            String?
+  heroCtaLink            String?
   updatedAt              DateTime @updatedAt
 }
 

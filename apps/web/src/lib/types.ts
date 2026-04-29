@@ -235,4 +235,24 @@ export interface AppSettings {
   codFeePaise?: number;
   returnWindowDays?: number;
   walletCashbackTiers?: Array<{ minPaise: number; cashbackPaise: number }>;
+  brandLogo?: string | null;
+  brandFavicon?: string | null;
+  brandPrimary?: string;
+  brandAccent?: string;
+  brandDark?: string;
+  footerAddress?: string;
+  footerGstin?: string;
+  footerCopyright?: string;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialTwitter?: string | null;
+  socialYoutube?: string | null;
+  socialWhatsapp?: string | null;
+  payRazorpayEnabled?: boolean;
+  payWalletEnabled?: boolean;
+  payUpiEnabled?: boolean;
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroCtaText?: string | null;
+  heroCtaLink?: string | null;
 }

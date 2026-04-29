@@ -160,6 +160,58 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Branding & Theme</h2>
+        <div className="grid md:grid-cols-3 gap-3">
+          {field("brandLogo", "Logo URL", "text", "Header logo (paste URL or upload via /admin/banners)")}
+          {field("brandFavicon", "Favicon URL", "text", "32x32 .ico/.png")}
+          {field("brandPrimary", "Primary color (#hex)", "text", "Default #2874f0")}
+          {field("brandAccent", "Accent color (#hex)", "text", "Default #ff9f00")}
+          {field("brandDark", "Dark color (#hex)", "text", "Default #172337")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Hero Banner Copy (homepage)</h2>
+        <p className="text-xs text-gray-500">When set, replaces the rotating hero copy. Leave blank for defaults.</p>
+        <div className="grid md:grid-cols-2 gap-3">
+          {field("heroTitle", "Hero title", "text")}
+          {field("heroSubtitle", "Hero subtitle", "text")}
+          {field("heroCtaText", "CTA button text", "text")}
+          {field("heroCtaLink", "CTA link (path or URL)", "text")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Footer</h2>
+        <div className="grid md:grid-cols-2 gap-3">
+          {field("footerAddress", "Registered address", "text")}
+          {field("footerGstin", "GSTIN", "text")}
+          {field("footerCopyright", "Copyright line", "text")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Social Links</h2>
+        <div className="grid md:grid-cols-3 gap-3">
+          {field("socialFacebook", "Facebook URL", "text")}
+          {field("socialInstagram", "Instagram URL", "text")}
+          {field("socialTwitter", "Twitter / X URL", "text")}
+          {field("socialYoutube", "YouTube URL", "text")}
+          {field("socialWhatsapp", "WhatsApp URL or number", "text")}
+        </div>
+      </section>
+
+      <section className="card p-4 space-y-3">
+        <h2 className="font-semibold">Payment Methods</h2>
+        <p className="text-xs text-gray-500">Toggle off to hide a method at checkout.</p>
+        <div className="grid md:grid-cols-3 gap-3">
+          {field("payRazorpayEnabled", "Razorpay (cards / UPI / netbanking)", "checkbox")}
+          {field("payWalletEnabled", "Wallet payment", "checkbox")}
+          {field("payUpiEnabled", "UPI direct (where supported)", "checkbox")}
+        </div>
+      </section>
+
       <div className="card p-4 flex items-center gap-3">
         <button onClick={save} disabled={saving} className="btn-primary">
           {saving ? "Saving..." : "Save Settings"}

@@ -36,6 +36,26 @@ router.get("/public", async (_req, res, next) => {
       codMaxOrderPaise: s.codMaxOrderPaise,
       codFeePaise: s.codFeePaise,
       returnWindowDays: s.returnWindowDays,
+      brandLogo: s.brandLogo,
+      brandFavicon: s.brandFavicon,
+      brandPrimary: s.brandPrimary,
+      brandAccent: s.brandAccent,
+      brandDark: s.brandDark,
+      footerAddress: s.footerAddress,
+      footerGstin: s.footerGstin,
+      footerCopyright: s.footerCopyright,
+      socialFacebook: s.socialFacebook,
+      socialInstagram: s.socialInstagram,
+      socialTwitter: s.socialTwitter,
+      socialYoutube: s.socialYoutube,
+      socialWhatsapp: s.socialWhatsapp,
+      payRazorpayEnabled: s.payRazorpayEnabled,
+      payWalletEnabled: s.payWalletEnabled,
+      payUpiEnabled: s.payUpiEnabled,
+      heroTitle: s.heroTitle,
+      heroSubtitle: s.heroSubtitle,
+      heroCtaText: s.heroCtaText,
+      heroCtaLink: s.heroCtaLink,
     });
   } catch (e) {
     next(e);
@@ -100,6 +120,27 @@ const updateSchema = z.object({
     )
     .max(10)
     .optional(),
+  // Branding & theme
+  brandLogo: z.string().nullable().optional(),
+  brandFavicon: z.string().nullable().optional(),
+  brandPrimary: z.string().regex(/^#[0-9a-fA-F]{3,8}$/).optional(),
+  brandAccent: z.string().regex(/^#[0-9a-fA-F]{3,8}$/).optional(),
+  brandDark: z.string().regex(/^#[0-9a-fA-F]{3,8}$/).optional(),
+  footerAddress: z.string().max(500).optional(),
+  footerGstin: z.string().max(50).optional(),
+  footerCopyright: z.string().max(200).optional(),
+  socialFacebook: z.string().nullable().optional(),
+  socialInstagram: z.string().nullable().optional(),
+  socialTwitter: z.string().nullable().optional(),
+  socialYoutube: z.string().nullable().optional(),
+  socialWhatsapp: z.string().nullable().optional(),
+  payRazorpayEnabled: z.boolean().optional(),
+  payWalletEnabled: z.boolean().optional(),
+  payUpiEnabled: z.boolean().optional(),
+  heroTitle: z.string().max(100).nullable().optional(),
+  heroSubtitle: z.string().max(200).nullable().optional(),
+  heroCtaText: z.string().max(40).nullable().optional(),
+  heroCtaLink: z.string().max(300).nullable().optional(),
 });
 
 router.patch("/", requireAuth, requireRole("ADMIN"), async (req, res, next) => {
