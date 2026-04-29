@@ -387,8 +387,24 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
       });
       if (claim.count === 0)
         throw new HttpError(400, "Order already finalised, cannot cancel");
-      // Propagate the cancel to child OrderItems so vendor dashboards stop
-      // showing them as in-flight, and admin analytics (which group by
+      const o = await tx.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { items: true },
+      });
+      // Restock only items that haven't already been cancelled/returned (their
+      // stock was never decremented again or is already accounted for). MUST
+      // run before the OrderItem status flip below — otherwise every item
+      // would already read as CANCELLED and the loop would skip restocking
+      // entirely (real inventory loss).
+      for (const it of o.items) {
+        if (it.status === "CANCELLED" || it.status === "RETURNED") continue;
+        await tx.product.update({
+          where: { id: it.productId },
+          data: { stock: { increment: it.quantity } },
+        });
+      }
+      // Now propagate the cancel to child OrderItems so vendor dashboards
+      // stop showing them as in-flight and admin analytics (which group by
       // OrderItem.status) no longer count cancelled-order items as sales.
       // DELIVERED items are kept as-is — at most an admin would mark
       // already-shipped goods as RETURNED through the returns flow.
@@ -399,19 +415,6 @@ router.post("/orders/:id/cancel", async (req, res, next) => {
         },
         data: { status: "CANCELLED" },
       });
-      const o = await tx.order.findUniqueOrThrow({
-        where: { id: order.id },
-        include: { items: true },
-      });
-      // Restock only items that haven't already been cancelled/returned (their
-      // stock was never decremented again or is already accounted for).
-      for (const it of o.items) {
-        if (it.status === "CANCELLED" || it.status === "RETURNED") continue;
-        await tx.product.update({
-          where: { id: it.productId },
-          data: { stock: { increment: it.quantity } },
-        });
-      }
       // Only refund a coupon slot if placement actually consumed one
       // (`couponDiscount > 0`). Mirrors the customer cancel flow.
       if (o.couponCode && o.couponDiscount > 0) {

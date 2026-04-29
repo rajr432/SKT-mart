@@ -549,25 +549,15 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
       });
       if (claim.count === 0)
         throw new HttpError(400, "Order cannot be cancelled at this stage");
-      // Propagate the cancel to child OrderItems so vendor dashboards stop
-      // showing them as PLACED/CONFIRMED, and so admin analytics that group
-      // by OrderItem.status no longer count cancelled-order items as sales.
-      // Excludes already-terminal items (defensive — pre-cancel item flow
-      // doesn't usually reach these but a future partial-cancel flow might).
-      await tx.orderItem.updateMany({
-        where: {
-          orderId: order.id,
-          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
-        },
-        data: { status: "CANCELLED" },
-      });
       const o = await tx.order.findUniqueOrThrow({
         where: { id: order.id },
         include: { items: true },
       });
       // restock — skip items already CANCELLED/RETURNED (their stock was
-      // either never deducted or already restored by a prior path). Mirrors
-      // the admin cancel flow in admin.ts:395-401.
+      // either never deducted or already restored by a prior path). MUST
+      // run before the OrderItem status flip below — otherwise every item
+      // would already read as CANCELLED and the loop would skip restocking
+      // entirely (real inventory loss).
       for (const it of o.items) {
         if (it.status === "CANCELLED" || it.status === "RETURNED") continue;
         await tx.product.update({
@@ -575,6 +565,18 @@ router.post("/:id/cancel", requireAuth, async (req, res, next) => {
           data: { stock: { increment: it.quantity } },
         });
       }
+      // Now propagate the cancel to child OrderItems so vendor dashboards
+      // stop showing them as PLACED/CONFIRMED and admin analytics that
+      // group by OrderItem.status no longer count cancelled-order items
+      // as sales. DELIVERED items are kept as-is (returns flow handles
+      // them); CANCELLED/RETURNED rows are already terminal.
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: order.id,
+          status: { notIn: ["CANCELLED", "RETURNED", "DELIVERED"] },
+        },
+        data: { status: "CANCELLED" },
+      });
       // Free the coupon usage slot on cancel. Without this, a limited-use
       // coupon (e.g. usageLimit=1) stays permanently consumed by this
       // cancelled order, blocking other users. Guarded by `usedCount > 0`
