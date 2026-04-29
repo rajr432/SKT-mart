@@ -197,6 +197,27 @@ router.post("/:id/transition", requireAuth, requireRole("ADMIN"), async (req, re
         `Mark return as RECEIVED before ${status.toLowerCase()} (so inventory is restocked).`,
       );
     }
+    // Workflow integrity: rank-only forward checks let an admin skip
+    // intermediate steps (e.g. REQUESTED rank=0 → PICKED_UP rank=2 jumps
+    // over APPROVED rank=1). Enforce explicit predecessors per target
+    // status so the audit trail reflects the actual lifecycle and a
+    // never-approved return cannot be silently picked up / received /
+    // refunded. APPROVED reachable only from REQUESTED; PICKED_UP only
+    // after APPROVED; RECEIVED only after PICKED_UP. Terminal states
+    // (REJECTED/REFUNDED/REPLACED) keep their broader allowed sources
+    // already enforced above.
+    const REQUIRED_PREVIOUS: Partial<Record<ReturnStatus, ReturnStatus[]>> = {
+      APPROVED: ["REQUESTED"],
+      PICKED_UP: ["APPROVED"],
+      RECEIVED: ["PICKED_UP"],
+    };
+    const required = REQUIRED_PREVIOUS[status as ReturnStatus];
+    if (required && !required.includes(r.status)) {
+      throw new HttpError(
+        400,
+        `Cannot move return to ${status} from ${r.status}; expected one of: ${required.join(", ")}.`,
+      );
+    }
 
     // Atomic: flip the Return row to REFUNDED and credit the user's wallet in
     // the same transaction. If the wallet credit throws we roll back the status

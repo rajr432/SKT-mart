@@ -90,8 +90,16 @@ router.post("/register", async (req, res, next) => {
     if (!body.email && !body.phone) {
       throw new HttpError(400, "Email or phone required");
     }
+    // Build the OR clauses dynamically — Prisma treats `{ email: undefined }`
+    // as a no-op filter (matches every row), so a phone-only registration
+    // would collapse to `OR: [matchAll, { phone: '...' }]` and always find
+    // a duplicate (or any user) once the table has at least one row,
+    // permanently blocking new phone-only signups.
+    const dupClauses: { email?: string; phone?: string }[] = [];
+    if (body.email) dupClauses.push({ email: body.email });
+    if (body.phone) dupClauses.push({ phone: body.phone });
     const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: body.email }, { phone: body.phone }] },
+      where: { OR: dupClauses },
     });
     if (existing) throw new HttpError(409, "Account already exists");
 
