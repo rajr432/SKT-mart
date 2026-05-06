@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { api } from "@/lib/api";
+import { api, formatPaise } from "@/lib/api";
 
 interface Detail {
   user: {
@@ -68,6 +68,30 @@ interface Detail {
   totalSpent: number;
 }
 
+const ROLE_TONE: Record<string, string> = {
+  ADMIN: "bg-rose-50 text-rose-700 border-rose-200",
+  VENDOR: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  CUSTOMER: "bg-sky-50 text-sky-700 border-sky-200",
+};
+
+const STATUS_TONE: Record<string, string> = {
+  PLACED: "bg-sky-50 text-sky-700 border-sky-200",
+  CONFIRMED: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  PACKED: "bg-violet-50 text-violet-700 border-violet-200",
+  SHIPPED: "bg-amber-50 text-amber-700 border-amber-200",
+  OUT_FOR_DELIVERY: "bg-orange-50 text-orange-700 border-orange-200",
+  DELIVERED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
+  RETURNED: "bg-gray-50 text-gray-600 border-gray-200",
+};
+
+const PAYMENT_TONE: Record<string, string> = {
+  PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REFUNDED: "bg-violet-50 text-violet-700 border-violet-200",
+  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
+  FAILED: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
 export default function AdminUserDetailPage() {
   const { token } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -102,65 +126,104 @@ export default function AdminUserDetailPage() {
 
   if (!data)
     return (
-      <div className="card p-6 text-center text-gray-500">Loading user…</div>
+      <div className="space-y-5">
+        <div className="card-premium p-5 sm:p-6 space-y-3">
+          <div className="skeleton-shimmer h-5 w-32 rounded-full" />
+          <div className="skeleton-shimmer h-6 w-48 rounded-full" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton-shimmer h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      </div>
     );
 
   const { user, walletTxns, totalSpent } = data;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Link
         href="/admin/users"
-        className="text-sm text-gray-600 hover:text-brand-blue"
+        className="text-[11px] uppercase tracking-[0.2em] text-gray-400 hover:text-accent transition inline-block"
       >
         ← All users
       </Link>
 
-      {/* Profile card */}
-      <div className="card p-4 md:p-6">
+      <div className="card-premium p-5 sm:p-6">
         <div className="flex items-start gap-4 flex-wrap">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl md:text-3xl font-bold shrink-0">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center text-white text-2xl md:text-3xl font-display tracking-tightest shrink-0">
             {user.name?.[0]?.toUpperCase() ?? "U"}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <h1 className="text-xl md:text-2xl font-bold">{user.name}</h1>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700 mt-1">
+            <h1 className="font-display text-2xl md:text-3xl tracking-tightest">
+              {user.name}
+            </h1>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700 mt-1.5">
               {user.email && (
-                <span>
-                  ✉ {user.email}
+                <span className="inline-flex items-center gap-1.5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    className="h-[14px] w-[14px] text-gray-400"
+                  >
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m4 7 8 6 8-6" />
+                  </svg>
+                  {user.email}
                   {user.emailVerified && (
-                    <span className="text-green-600 ml-1">✓</span>
+                    <span className="text-emerald-600">✓</span>
                   )}
                 </span>
               )}
               {user.phone && (
-                <span>
-                  📞 {user.phone}
+                <span className="inline-flex items-center gap-1.5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    className="h-[14px] w-[14px] text-gray-400"
+                  >
+                    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
+                  </svg>
+                  {user.phone}
                   {user.phoneVerified && (
-                    <span className="text-green-600 ml-1">✓</span>
+                    <span className="text-emerald-600">✓</span>
                   )}
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 mt-2 text-xs">
-              <Badge color="blue">{user.role}</Badge>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              <span
+                className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                  ROLE_TONE[user.role] ??
+                  "bg-gray-50 text-gray-600 border-gray-200"
+                }`}
+              >
+                {user.role}
+              </span>
               {user.vendor && (
-                <Badge color="green">
-                  🏪 {user.vendor.storeName} · {user.vendor.status}
-                </Badge>
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                  {user.vendor.storeName} · {user.vendor.status}
+                </span>
               )}
               {user.referralCode && (
-                <Badge color="purple">Ref: {user.referralCode}</Badge>
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 font-mono">
+                  Ref: {user.referralCode}
+                </span>
               )}
             </div>
-            <div className="text-xs text-gray-500 mt-2">
-              Joined {new Date(user.createdAt).toLocaleString()} · Last updated{" "}
+            <div className="text-[11px] text-gray-500 mt-2.5">
+              Joined {new Date(user.createdAt).toLocaleDateString()} · Updated{" "}
               {new Date(user.updatedAt).toLocaleDateString()}
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <select
-              className="input !w-auto !py-1"
+              className="rounded-full border border-gray-100 bg-gray-50/60 px-3.5 py-1.5 text-xs outline-none focus:border-accent/40 focus:bg-white transition disabled:opacity-50"
               defaultValue={user.role}
               disabled={busy}
               onChange={(e) => changeRole(e.target.value)}
@@ -172,7 +235,7 @@ export default function AdminUserDetailPage() {
             {user.vendor && (
               <Link
                 href={`/admin/vendors/${user.vendor.id}`}
-                className="btn-outline !py-1 text-xs"
+                className="text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100 transition"
               >
                 Vendor profile →
               </Link>
@@ -181,179 +244,185 @@ export default function AdminUserDetailPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Total orders" value={user._count.orders.toString()} />
-        <Stat
-          label="Total spent"
-          value={`₹${(totalSpent / 100).toFixed(0)}`}
-        />
-        <Stat
-          label="Wallet"
-          value={`₹${(user.walletBalance / 100).toFixed(0)}`}
-        />
-        <Stat
-          label="Loyalty coins"
-          value={user.loyaltyPoints.toString()}
-        />
+        <Stat label="Total spent" value={formatPaise(totalSpent)} accent />
+        <Stat label="Wallet" value={formatPaise(user.walletBalance)} />
+        <Stat label="Loyalty coins" value={user.loyaltyPoints.toString()} />
       </div>
 
-      {/* Addresses */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-3">
-          Addresses ({user.addresses.length})
-        </h2>
+      <section className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">
+          Addresses · {user.addresses.length}
+        </p>
         {user.addresses.length === 0 ? (
-          <p className="text-sm text-gray-500">No addresses saved.</p>
+          <p className="text-sm text-gray-500 mt-2">No addresses saved.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             {user.addresses.map((a) => (
               <div
                 key={a.id}
-                className="border rounded-lg p-3 text-sm bg-gray-50"
+                className="rounded-2xl border border-gray-100 p-4 hover:border-accent/30 hover:bg-violet-50/30 transition"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium">{a.name}</span>
+                  <span className="font-medium tracking-tight">{a.name}</span>
                   {a.isDefault && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">
                       Default
                     </span>
                   )}
                 </div>
-                <div className="text-gray-700">📞 {a.phone}</div>
-                <div className="text-gray-700 text-xs mt-1">
+                <p className="text-[12px] text-gray-600">{a.phone}</p>
+                <p className="text-[12px] text-gray-600 mt-1">
                   {a.line1}
-                  {a.line2 ? `, ${a.line2}` : ""}, {a.city}, {a.state} -{" "}
+                  {a.line2 ? `, ${a.line2}` : ""}, {a.city}, {a.state} —{" "}
                   {a.pincode}
-                </div>
+                </p>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Orders */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-3">
-          Recent orders ({user.orders.length})
-        </h2>
-        <div className="overflow-x-auto -mx-4">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="border-b text-left bg-gray-50">
-              <tr>
-                <th className="py-2 px-2">Order #</th>
-                <th className="py-2 px-2">Status</th>
-                <th className="py-2 px-2">Payment</th>
-                <th className="py-2 px-2">Total</th>
-                <th className="py-2 px-2">Placed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {user.orders.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="py-4 px-2 text-center text-gray-500"
-                  >
-                    No orders yet
-                  </td>
-                </tr>
-              )}
-              {user.orders.map((o) => (
-                <tr key={o.id} className="border-b">
-                  <td className="py-2 px-2 font-mono text-xs">
-                    {o.orderNumber}
-                  </td>
-                  <td className="py-2 px-2 text-xs">{o.status}</td>
-                  <td className="py-2 px-2 text-xs">
-                    {o.paymentStatus} · {o.paymentMethod}
-                  </td>
-                  <td className="py-2 px-2">
-                    ₹{(o.total / 100).toFixed(0)}
-                  </td>
-                  <td className="py-2 px-2 text-xs">
-                    {new Date(o.placedAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Wallet transactions */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-3">
-          Wallet transactions ({walletTxns.length})
-        </h2>
-        <div className="overflow-x-auto -mx-4">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead className="border-b text-left bg-gray-50">
-              <tr>
-                <th className="py-2 px-2">Reason</th>
-                <th className="py-2 px-2">Amount</th>
-                <th className="py-2 px-2">Balance</th>
-                <th className="py-2 px-2">Note</th>
-                <th className="py-2 px-2">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {walletTxns.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="py-4 px-2 text-center text-gray-500"
-                  >
-                    No wallet activity
-                  </td>
-                </tr>
-              )}
-              {walletTxns.map((t) => (
-                <tr key={t.id} className="border-b">
-                  <td className="py-2 px-2 text-xs">{t.reason}</td>
-                  <td
-                    className={`py-2 px-2 font-medium ${t.amount >= 0 ? "text-green-700" : "text-red-600"}`}
-                  >
-                    {t.amount >= 0 ? "+" : ""}₹{(t.amount / 100).toFixed(0)}
-                  </td>
-                  <td className="py-2 px-2">
-                    ₹{(t.balanceAfter / 100).toFixed(0)}
-                  </td>
-                  <td className="py-2 px-2 text-xs text-gray-600">
-                    {t.note ?? "—"}
-                  </td>
-                  <td className="py-2 px-2 text-xs">
-                    {new Date(t.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      <div className="card p-4">
-        <h2 className="font-semibold mb-3">
-          Recent notifications ({user.notifications.length})
-        </h2>
-        {user.notifications.length === 0 ? (
-          <p className="text-sm text-gray-500">No notifications.</p>
+      <section className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">
+          Recent orders · {user.orders.length}
+        </p>
+        {user.orders.length === 0 ? (
+          <p className="text-sm text-gray-500 mt-2">No orders yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 mt-3">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 text-left">
+                  <Th>Order</Th>
+                  <Th>Status</Th>
+                  <Th>Payment</Th>
+                  <Th>Total</Th>
+                  <Th>Placed</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {user.orders.map((o) => (
+                  <tr
+                    key={o.id}
+                    className="hover:bg-violet-50/30 transition"
+                  >
+                    <td className="px-4 py-2.5 font-mono text-[11px]">
+                      {o.orderNumber}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                          STATUS_TONE[o.status] ??
+                          "bg-gray-50 text-gray-600 border-gray-200"
+                        }`}
+                      >
+                        {o.status.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                          PAYMENT_TONE[o.paymentStatus] ??
+                          "bg-gray-50 text-gray-600 border-gray-200"
+                        }`}
+                      >
+                        {o.paymentStatus}
+                      </span>
+                      <span className="text-[10px] text-gray-500 ml-1.5">
+                        {o.paymentMethod}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums font-medium">
+                      {formatPaise(o.total)}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-500">
+                      {new Date(o.placedAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">
+          Wallet activity · {walletTxns.length}
+        </p>
+        {walletTxns.length === 0 ? (
+          <p className="text-sm text-gray-500 mt-2">No wallet activity.</p>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-gray-100 mt-3">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 text-left">
+                  <Th>Reason</Th>
+                  <Th>Amount</Th>
+                  <Th>Balance</Th>
+                  <Th>Note</Th>
+                  <Th>When</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {walletTxns.map((t) => (
+                  <tr
+                    key={t.id}
+                    className="hover:bg-violet-50/30 transition"
+                  >
+                    <td className="px-4 py-2.5 text-[11px] uppercase tracking-wider text-gray-500">
+                      {t.reason}
+                    </td>
+                    <td
+                      className={`px-4 py-2.5 font-medium tabular-nums ${
+                        t.amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                      }`}
+                    >
+                      {t.amount >= 0 ? "+" : ""}
+                      {formatPaise(t.amount)}
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums">
+                      {formatPaise(t.balanceAfter)}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-600">
+                      {t.note ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-500">
+                      {new Date(t.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">
+          Recent notifications · {user.notifications.length}
+        </p>
+        {user.notifications.length === 0 ? (
+          <p className="text-sm text-gray-500 mt-2">No notifications.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-gray-100">
             {user.notifications.map((n) => (
               <li
                 key={n.id}
-                className="flex items-start justify-between gap-2 text-sm border-b pb-2 last:border-0"
+                className="flex items-start justify-between gap-2 py-2.5"
               >
-                <div>
-                  <div className="font-medium">{n.title}</div>
-                  <div className="text-xs text-gray-500">
+                <div className="min-w-0">
+                  <p className="font-medium tracking-tight text-[13px] truncate">
+                    {n.title}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
                     {n.type} · {new Date(n.createdAt).toLocaleString()}
-                  </div>
+                  </p>
                 </div>
                 {!n.read && (
-                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded h-fit">
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
                     New
                   </span>
                 )}
@@ -361,33 +430,46 @@ export default function AdminUserDetailPage() {
             ))}
           </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Th({ children }: { children: React.ReactNode }) {
   return (
-    <div className="card p-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-lg md:text-xl font-bold mt-1">{value}</div>
-    </div>
+    <th className="px-4 py-2.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-gray-400">
+      {children}
+    </th>
   );
 }
 
-function Badge({
-  children,
-  color,
+function Stat({
+  label,
+  value,
+  accent = false,
 }: {
-  children: React.ReactNode;
-  color: "blue" | "green" | "purple";
+  label: string;
+  value: string;
+  accent?: boolean;
 }) {
-  const cls = {
-    blue: "bg-blue-100 text-blue-700",
-    green: "bg-green-100 text-green-700",
-    purple: "bg-purple-100 text-purple-700",
-  }[color];
   return (
-    <span className={`inline-block px-2 py-0.5 rounded ${cls}`}>{children}</span>
+    <div
+      className={`card-premium p-4 ${
+        accent
+          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white border-0"
+          : ""
+      }`}
+    >
+      <p
+        className={`text-[10px] uppercase tracking-[0.22em] ${
+          accent ? "text-white/80" : "text-gray-400"
+        }`}
+      >
+        {label}
+      </p>
+      <p className="font-display text-xl md:text-2xl tracking-tightest mt-1 break-words">
+        {value}
+      </p>
+    </div>
   );
 }
