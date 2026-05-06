@@ -16,6 +16,9 @@ interface Brand {
 
 const blank = { name: "", slug: "", logo: "" };
 
+const inputCls =
+  "w-full rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-2.5 text-sm outline-none focus:border-accent/40 focus:bg-white transition";
+
 export default function AdminBrandsPage() {
   const { token } = useAuth();
   const [items, setItems] = useState<Brand[]>([]);
@@ -24,14 +27,21 @@ export default function AdminBrandsPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    const { items } = await api<{ items: Brand[] }>("/api/admin/brands", { token });
-    setItems(items);
+    setLoading(true);
+    try {
+      const { items } = await api<{ items: Brand[] }>("/api/admin/brands", { token });
+      setItems(items);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (token) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const resetForm = () => {
@@ -80,7 +90,11 @@ export default function AdminBrandsPage() {
   };
 
   const del = async (b: Brand) => {
-    if (!confirm(`Delete brand "${b.name}"? Products under this brand will not be deleted but will show no brand.`))
+    if (
+      !confirm(
+        `Delete brand "${b.name}"? Products under this brand will not be deleted but will show no brand.`,
+      )
+    )
       return;
     try {
       await api(`/api/admin/brands/${b.id}`, { token, method: "DELETE" });
@@ -117,22 +131,23 @@ export default function AdminBrandsPage() {
     : items;
 
   return (
-    <div className="space-y-4">
-      <div className="card p-4 md:p-6">
-        <h2 className="font-semibold mb-3">
+    <div className="space-y-5">
+      <div className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Catalogue</p>
+        <h2 className="font-display text-2xl tracking-tightest mb-5">
           {editingId ? "Edit brand" : "Add new brand"}
         </h2>
         <form onSubmit={submit} className="grid gap-3">
           <div className="grid md:grid-cols-2 gap-3">
             <input
-              className="input"
+              className={inputCls}
               placeholder="Name (e.g. Nike)"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
             />
             <input
-              className="input"
+              className={inputCls}
               placeholder="Slug (auto if blank)"
               value={form.slug}
               onChange={(e) => setForm({ ...form, slug: e.target.value })}
@@ -145,16 +160,20 @@ export default function AdminBrandsPage() {
             placeholder="Brand logo URL or upload"
             aspect="aspect-square"
           />
-          {err && <p className="text-red-600 text-sm">{err}</p>}
+          {err && (
+            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-2xl px-3 py-2">
+              {err}
+            </p>
+          )}
           <div className="flex gap-2">
-            <button className="btn-primary flex-1" disabled={busy}>
+            <button className="btn-primary btn-pill flex-1" disabled={busy}>
               {busy ? "Saving…" : editingId ? "Update brand" : "Create brand"}
             </button>
             {editingId && (
               <button
                 type="button"
                 onClick={resetForm}
-                className="btn-outline"
+                className="btn-outline btn-pill"
                 disabled={busy}
               >
                 Cancel
@@ -164,78 +183,123 @@ export default function AdminBrandsPage() {
         </form>
       </div>
 
-      <div className="card p-4">
-        <div className="flex justify-between items-center mb-3 gap-2">
-          <h2 className="font-semibold">All brands ({filtered.length})</h2>
-          <input
-            className="input !w-auto text-sm"
-            placeholder="Search brands"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+      <div className="card-premium p-5 sm:p-6">
+        <div className="flex justify-between items-end mb-4 gap-3 flex-wrap">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Library</p>
+            <h2 className="font-display text-2xl tracking-tightest">
+              All brands
+              <span className="ml-2 text-sm text-gray-400 font-sans tracking-normal">
+                ({filtered.length})
+              </span>
+            </h2>
+          </div>
+          <div className="relative">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              className="rounded-full border border-gray-100 bg-gray-50/60 pl-10 pr-4 py-2 text-sm outline-none focus:border-accent/40 focus:bg-white transition"
+              placeholder="Search brands"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
         </div>
-        {filtered.length === 0 && (
-          <p className="text-sm text-gray-500">No brands found.</p>
-        )}
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {filtered.map((b) => (
-            <div key={b.id} className="border rounded p-3 flex items-center gap-3">
-              {b.logo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={b.logo}
-                  alt={b.name}
-                  className="w-14 h-14 object-contain rounded bg-white border"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded bg-gray-100 flex items-center justify-center text-lg font-bold">
-                  {b.name[0]}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{b.name}</p>
-                <p className="text-xs text-gray-500 truncate">/{b.slug}</p>
-                <div className="flex gap-1 mt-1">
-                  <button
-                    onClick={() => toggleFeatured(b)}
-                    className={`text-[10px] px-2 py-0.5 rounded ${
-                      b.featured
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
-                    title="Show on homepage 'Top Brands' strip"
-                  >
-                    {b.featured ? "⭐ Top" : "Feature"}
-                  </button>
-                  <button
-                    onClick={() => toggleActive(b)}
-                    className={`text-[10px] px-2 py-0.5 rounded ${
-                      b.active
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {b.active ? "Active" : "Hidden"}
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => startEdit(b)}
-                  className="text-xs text-brand-blue hover:underline"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => del(b)}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              </div>
+
+        {loading ? (
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton-shimmer h-20 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-violet-50 text-accent">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="h-6 w-6"
+              >
+                <path d="M3 7l3-3h12l3 3v3a3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1-3 3 3 3 0 0 1-3-3V7Z" />
+                <path d="M5 13v7h14v-7" />
+              </svg>
             </div>
-          ))}
-        </div>
+            <p className="text-sm text-gray-500">No brands found.</p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {filtered.map((b) => (
+              <div
+                key={b.id}
+                className="rounded-2xl border border-gray-100 p-3 flex items-center gap-3 hover:border-accent/40 transition"
+              >
+                {b.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={b.logo}
+                    alt={b.name}
+                    className="w-14 h-14 object-contain rounded-2xl bg-white border border-gray-100"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-50 to-fuchsia-50 text-accent grid place-items-center font-display text-lg tracking-tight">
+                    {b.name[0]}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium tracking-tight truncate">{b.name}</p>
+                  <p className="text-[11px] text-gray-400 truncate">/{b.slug}</p>
+                  <div className="flex gap-1 mt-1.5">
+                    <button
+                      onClick={() => toggleFeatured(b)}
+                      className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border transition ${
+                        b.featured
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
+                      }`}
+                      title="Show on homepage 'Top Brands' strip"
+                    >
+                      {b.featured ? "Featured" : "Feature"}
+                    </button>
+                    <button
+                      onClick={() => toggleActive(b)}
+                      className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border transition ${
+                        b.active
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-gray-50 text-gray-500 border-gray-200"
+                      }`}
+                    >
+                      {b.active ? "Active" : "Hidden"}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => startEdit(b)}
+                    className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100 transition"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => del(b)}
+                    className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
