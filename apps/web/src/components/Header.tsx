@@ -20,8 +20,24 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
+  const [phIdx, setPhIdx] = useState(0);
   const router = useRouter();
   const timer = useRef<NodeJS.Timeout | null>(null);
+
+  const PLACEHOLDERS = [
+    "Search for 'Sneakers'",
+    "Search for 'Latest Kurta'",
+    "Search for 'iPhone 15'",
+    "Search for 'Wireless Earbuds'",
+    "Search for 'Lipstick'",
+    "Search for 'Smart Watch'",
+    "Search for 'Backpack'",
+  ];
+
+  useEffect(() => {
+    const t = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDERS.length), 2800);
+    return () => clearInterval(t);
+  }, [PLACEHOLDERS.length]);
 
   useEffect(() => {
     try {
@@ -102,40 +118,51 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-brand text-white sticky top-0 z-40 shadow">
+    <header className="bg-white/80 glass border-b border-gray-100 text-ink sticky top-0 z-40">
       <div className="container-page flex items-center gap-2 py-2.5">
         <MobileDrawer />
         <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="SKT Mart home">
-          <span className="bg-white rounded-md p-1 flex items-center justify-center">
+          <span className="rounded-xl p-1 flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.jpg" alt="SKT Mart" className="h-8 w-auto" />
+            <img src="/logo.jpg" alt="SKT Mart" className="h-8 w-auto rounded-lg" />
           </span>
-          <span className="hidden md:inline text-[11px] italic text-brand-yellow leading-tight">
+          <span className="hidden md:inline text-[11px] font-medium text-ink-muted leading-tight tracking-wide">
             Shop Smart,<br />Live Better
           </span>
         </Link>
 
         <form onSubmit={submit} className="relative flex-1 max-w-2xl">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onFocus={() => (suggestions.length > 0 || recent.length > 0) && setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 120)}
-            placeholder="Search for products, brands and more"
-            className="w-full text-gray-900 text-sm rounded-sm px-3 py-2 pr-10 focus:outline-none"
-          />
-          <div className="absolute right-0 top-0 h-full flex items-center">
-            <VoiceSearch />
-            <button
-              type="submit"
-              className="h-full px-3 text-brand"
-              aria-label="search"
-            >
-              🔍
-            </button>
+          <div className="relative flex items-center bg-gray-100/80 hover:bg-gray-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-accent/30 rounded-full transition-all border border-transparent focus-within:border-accent/40">
+            <span className="pl-4 text-ink-muted" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => (suggestions.length > 0 || recent.length > 0) && setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 120)}
+              placeholder={PLACEHOLDERS[phIdx]}
+              className="flex-1 bg-transparent text-ink text-sm px-3 py-2 focus:outline-none placeholder:text-ink-muted placeholder:transition-opacity"
+            />
+            <div className="flex items-center pr-1">
+              <VoiceSearch />
+              <button
+                type="submit"
+                className="h-8 w-8 grid place-items-center rounded-full bg-accent text-white hover:bg-accent-dark transition"
+                aria-label="search"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+            </div>
           </div>
           {open && (suggestions.length > 0 || (q.trim().length < 2 && recent.length > 0)) && (
-            <div className="absolute top-full left-0 right-0 bg-white text-gray-900 shadow-lg mt-1 z-50 max-h-80 overflow-auto rounded-b-md">
+            <div className="absolute top-full left-0 right-0 bg-white text-ink shadow-2xl mt-2 z-50 max-h-80 overflow-auto rounded-2xl border border-gray-100">
               {q.trim().length < 2 && recent.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-3 py-2 text-[11px] uppercase text-gray-500 bg-gray-50 border-b">
@@ -289,7 +316,7 @@ export default function Header() {
           ) : (
             <Link
               href="/login"
-              className="bg-white text-brand px-6 py-1 font-semibold rounded-sm"
+              className="btn-pill bg-accent text-white text-sm hover:bg-accent-dark"
             >
               Login
             </Link>

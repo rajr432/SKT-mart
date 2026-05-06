@@ -277,3 +277,118 @@ img {
   max-width: 100%;
   height: auto;
 }
+
+/* ============ Premium Luxury System ============ */
+/* Glassmorphism — frosted, blurred surface */
+.glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+.glass-dark {
+  background: rgba(15, 15, 20, 0.55);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.glass-soft {
+  background: rgba(243, 244, 246, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Instagram-style story circle gradient ring */
+.story-ring {
+  background: conic-gradient(
+    from 180deg,
+    #7c3aed 0deg,
+    #ec4899 90deg,
+    #f59e0b 180deg,
+    #06b6d4 270deg,
+    #7c3aed 360deg
+  );
+  padding: 2px;
+  border-radius: 9999px;
+}
+.story-ring-static {
+  background: linear-gradient(135deg, #7c3aed, #ec4899, #f59e0b);
+  padding: 2px;
+  border-radius: 9999px;
+}
+
+/* Premium card — minimal shadow, deep on hover */
+.card-premium {
+  @apply bg-white rounded-3xl border border-gray-100 transition-all duration-300;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.card-premium:hover {
+  box-shadow: 0 12px 32px -8px rgba(124, 58, 237, 0.18);
+  transform: translateY(-2px);
+}
+@media (max-width: 640px) {
+  .card-premium:hover {
+    transform: none !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  }
+}
+
+/* Pill button — accent floating action */
+.btn-accent {
+  @apply inline-flex items-center justify-center bg-accent text-white font-semibold rounded-full transition-all;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+}
+.btn-accent:hover {
+  background: #5b21b6;
+  box-shadow: 0 8px 22px rgba(124, 58, 237, 0.5);
+}
+.btn-pill {
+  @apply inline-flex items-center justify-center px-5 py-2 rounded-full font-medium transition-all;
+}
+
+/* Floating add-to-cart "+" button on product card */
+.fab-add {
+  @apply absolute bottom-2 right-2 z-10 h-9 w-9 rounded-full grid place-items-center text-white text-lg font-bold;
+  background: #7c3aed;
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.45);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.fab-add:hover {
+  background: #5b21b6;
+  transform: scale(1.08);
+}
+.fab-add:active {
+  transform: scale(0.95);
+}
+
+/* Smart Deal pill (replaces "Platform 10% auto-deducted") */
+.tag-pill {
+  @apply inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full;
+}
+.tag-pill-deal {
+  background: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
+  color: white;
+}
+.tag-pill-assured {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  color: white;
+}
+
+/* Flash deal gradient backgrounds (subtle) */
+.flash-grad-1 { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+.flash-grad-2 { background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); }
+.flash-grad-3 { background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); }
+.flash-grad-4 { background: linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%); }
+
+/* Lifestyle category tile shadow */
+.lifestyle-tile {
+  @apply relative overflow-hidden rounded-3xl;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
+}
+
+/* Premium scroll reveal */
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

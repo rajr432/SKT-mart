@@ -5,73 +5,76 @@ import { useEffect, useState } from "react";
 
 const SLIDES = [
   {
-    tag: "Flash Sale",
-    title: "Upto 80% OFF",
-    subtitle: "Electronics, Mobiles & Laptops",
+    tag: "Limited Edition",
+    title: "Curated for You",
+    subtitle: "Premium electronics, fashion & lifestyle — handpicked.",
     cta: "Shop Now",
     href: "/category/electronics",
-    grad: "from-[#2874f0] via-[#7b4bff] to-[#ff6b6b]",
+    grad: "from-violet-100 via-fuchsia-50 to-rose-100",
+    accent: "text-accent-dark",
   },
   {
-    tag: "New Arrivals",
-    title: "Fashion Week",
-    subtitle: "Trending styles from top brands",
+    tag: "New Season",
+    title: "Fashion Edit '25",
+    subtitle: "Trending silhouettes from top designers.",
     cta: "Explore",
     href: "/category/fashion",
-    grad: "from-[#ff9500] via-[#ffd814] to-[#ff4d8d]",
+    grad: "from-amber-50 via-rose-50 to-pink-100",
+    accent: "text-rose-700",
   },
   {
-    tag: "Big Saver",
-    title: "Home Makeover",
-    subtitle: "Furniture, Kitchen & Appliances",
+    tag: "Home & Living",
+    title: "Refined Spaces",
+    subtitle: "Minimalist furniture, smart kitchen & decor.",
     cta: "Browse",
     href: "/category/home-kitchen",
-    grad: "from-[#16a34a] via-[#22d3ee] to-[#2874f0]",
+    grad: "from-emerald-50 via-teal-50 to-cyan-100",
+    accent: "text-emerald-700",
   },
 ];
 
 export default function Hero3D() {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx((i) => (i + 1) % SLIDES.length), 4500);
+    const t = setInterval(() => setIdx((i) => (i + 1) % SLIDES.length), 5500);
     return () => clearInterval(t);
   }, []);
   const s = SLIDES[idx];
 
   return (
     <section
-      className={`hero-3d relative overflow-hidden rounded-xl bg-gradient-to-br ${s.grad} text-white transition-[background] duration-700`}
+      className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${s.grad} transition-[background] duration-1000`}
     >
-      <div className="container-page relative py-6 sm:py-16 grid sm:grid-cols-[1.3fr_1fr] items-center gap-6">
-        <div className="tilt-in space-y-4 relative z-10">
-          <span className="inline-block bg-white/20 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase">
+      <div className="container-page relative py-10 sm:py-16 grid sm:grid-cols-[1.2fr_1fr] items-center gap-6">
+        <div className="space-y-4 relative z-10 fade-up">
+          <span className={`inline-block bg-white/70 backdrop-blur px-3 py-1 rounded-full text-[11px] font-bold tracking-[0.2em] uppercase ${s.accent}`}>
             {s.tag}
           </span>
-          <h1 className="text-3xl sm:text-5xl font-extrabold leading-tight shine-text drop-shadow">
+          <h1 className="text-3xl sm:text-5xl font-bold leading-[1.1] text-ink tracking-tight">
             {s.title}
           </h1>
-          <p className="text-white/90 text-sm sm:text-lg max-w-md">{s.subtitle}</p>
+          <p className="text-ink-soft text-sm sm:text-base max-w-md">{s.subtitle}</p>
           <div className="flex gap-3 pt-2">
             <Link
               href={s.href}
-              className="pulse-glow bg-brand-yellow text-gray-900 font-bold px-6 py-3 rounded-full hover:scale-105 transition"
+              className="btn-pill bg-ink text-white text-sm hover:bg-accent-dark"
             >
               {s.cta} →
             </Link>
             <Link
               href="/search"
-              className="bg-white/10 backdrop-blur border border-white/30 px-6 py-3 rounded-full hover:bg-white/20 transition"
+              className="btn-pill bg-white/80 border border-gray-200 text-ink text-sm hover:bg-white"
             >
               All Deals
             </Link>
           </div>
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-3">
             {SLIDES.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setIdx(i)}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === idx ? "w-8 bg-white" : "w-3 bg-white/40"
+                className={`h-1 rounded-full transition-all ${
+                  i === idx ? "w-10 bg-ink" : "w-3 bg-ink/20"
                 }`}
                 aria-label={`slide ${i + 1}`}
               />
@@ -79,41 +82,14 @@ export default function Hero3D() {
           </div>
         </div>
 
-        {/* 3D floating cube — hidden on phones for faster paint + cleaner UI */}
+        {/* Decorative floating shape — minimalist, no logo cube */}
         <div className="relative h-48 sm:h-72 hidden sm:flex items-center justify-center">
-          <div className="hero-cube relative w-36 h-36 sm:w-48 sm:h-48">
-            {/* 6 faces of a cube */}
-            {[
-              { t: "translateZ(96px)" },
-              { t: "rotateY(180deg) translateZ(96px)" },
-              { t: "rotateY(90deg) translateZ(96px)" },
-              { t: "rotateY(-90deg) translateZ(96px)" },
-              { t: "rotateX(90deg) translateZ(96px)" },
-              { t: "rotateX(-90deg) translateZ(96px)" },
-            ].map((f, i) => (
-              <div
-                key={i}
-                className="absolute inset-0 rounded-2xl bg-white/95 flex items-center justify-center shadow-2xl"
-                style={{ transform: f.t, backfaceVisibility: "hidden" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo.jpg"
-                  alt="SKT Mart"
-                  className="w-3/4 h-3/4 object-contain rounded-xl"
-                />
-              </div>
-            ))}
-          </div>
-          {/* orbit ring */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="spin-slow w-60 h-60 sm:w-80 sm:h-80 rounded-full border-2 border-dashed border-white/30" />
-          </div>
+          <div className="absolute h-56 w-56 rounded-full bg-white/40 backdrop-blur-2xl border border-white/60" />
+          <div className="absolute h-72 w-72 rounded-full border border-white/40" />
+          <div className="absolute right-8 top-8 h-20 w-20 rounded-3xl bg-accent/10 backdrop-blur-sm border border-accent/20 rotate-12" />
+          <div className="absolute left-4 bottom-6 h-14 w-14 rounded-full bg-pink-300/30 backdrop-blur-sm border border-pink-300/40" />
         </div>
       </div>
-      {/* decorative blobs */}
-      <div className="absolute -top-20 -right-10 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-      <div className="absolute -bottom-24 -left-10 w-72 h-72 bg-black/10 rounded-full blur-3xl" />
     </section>
   );
 }

@@ -11,6 +11,21 @@ const config: Config = {
           yellow: "#ff9f00",
           green: "#388e3c",
         },
+        accent: {
+          DEFAULT: "#7c3aed",
+          light: "#a78bfa",
+          dark: "#5b21b6",
+        },
+        ink: {
+          DEFAULT: "#0a0a0a",
+          soft: "#1f2937",
+          muted: "#6b7280",
+        },
+      },
+      borderRadius: {
+        "2xl": "1rem",
+        "3xl": "1.5rem",
+        "4xl": "2rem",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],

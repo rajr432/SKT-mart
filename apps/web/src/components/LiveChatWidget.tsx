@@ -143,14 +143,24 @@ export default function LiveChatWidget() {
     <>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-[80px] md:bottom-6 right-3 md:right-6 z-40 bg-gradient-to-br from-[#2874f0] to-[#7b4bff] text-white rounded-full h-14 w-14 md:h-16 md:w-16 shadow-2xl flex items-center justify-center text-2xl hover:scale-110 transition animate-pulse-soft"
+        className="fixed bottom-[78px] md:bottom-6 right-3 md:right-6 z-40 h-11 w-11 md:h-12 md:w-12 rounded-full grid place-items-center transition-all hover:scale-105 glass text-accent border border-white/40 shadow-lg"
+        style={{ backdropFilter: "saturate(180%) blur(16px)", WebkitBackdropFilter: "saturate(180%) blur(16px)" }}
         aria-label="Help chat"
       >
-        {open ? "✕" : "💬"}
+        {open ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        )}
       </button>
       {open && (
-        <div className="fixed bottom-[150px] md:bottom-28 right-3 md:right-6 z-40 w-[360px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col" style={{ height: "520px", maxHeight: "calc(100vh - 180px)" }}>
-          <div className="bg-gradient-to-br from-[#2874f0] to-[#7b4bff] text-white px-4 py-3 flex items-center gap-3">
+        <div className="fixed bottom-[140px] md:bottom-24 right-3 md:right-6 z-40 w-[360px] max-w-[calc(100vw-24px)] bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col" style={{ height: "520px", maxHeight: "calc(100vh - 180px)" }}>
+          <div className="bg-gradient-to-br from-accent to-pink-500 text-white px-4 py-3 flex items-center gap-3">
             <div className="h-9 w-9 bg-white/20 rounded-full flex items-center justify-center text-lg">🤖</div>
             <div className="flex-1">
               <div className="font-semibold">SKT Assistant</div>
