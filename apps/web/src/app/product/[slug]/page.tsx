@@ -80,8 +80,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
               {product.ratingCount} Ratings &amp; {product.ratingCount} Reviews
             </span>
             {product.fAssured && (
-              <span className="text-xs bg-brand-yellow text-white px-2 py-0.5 rounded">
-                F-Assured
+              <span className="tag-pill tag-pill-assured">
+                ✓ Assured
               </span>
             )}
           </div>

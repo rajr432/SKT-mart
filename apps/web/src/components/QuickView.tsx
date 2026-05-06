@@ -141,12 +141,12 @@ export default function QuickView({ productSlug, onClose }: Props) {
           </div>
 
           {product.fAssured && (
-            <span className="inline-block mt-2 text-xs bg-brand-yellow text-white px-2 py-0.5 rounded w-fit">
-              F-Assured
+            <span className="tag-pill tag-pill-assured mt-2 w-fit">
+              ✓ Assured
             </span>
           )}
 
-          <p className="text-sm text-gray-600 mt-3 line-clamp-4">
+          <p className="text-sm text-ink-soft mt-3 line-clamp-4">
             {product.description}
           </p>
 
@@ -154,19 +154,19 @@ export default function QuickView({ productSlug, onClose }: Props) {
             <button
               onClick={addToCart}
               disabled={adding || product.stock <= 0}
-              className="btn-yellow flex-1"
+              className="btn-pill bg-accent text-white flex-1 hover:bg-accent-dark disabled:opacity-50"
             >
               {product.stock <= 0
                 ? "Out of stock"
                 : added
-                  ? "Added!"
+                  ? "Added ✓"
                   : adding
                     ? "Adding…"
                     : "Add to cart"}
             </button>
             <Link
               href={`/product/${product.slug}`}
-              className="btn-outline flex-1 text-center"
+              className="btn-pill border border-gray-200 bg-white text-ink hover:bg-gray-50 flex-1 text-center"
               onClick={onClose}
             >
               View details

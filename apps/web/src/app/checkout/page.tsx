@@ -7,6 +7,19 @@ import { useAuth } from "@/components/AuthProvider";
 import { api, formatPaise } from "@/lib/api";
 import type { Address, CartItem } from "@/lib/types";
 
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return resolve();
+    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load Razorpay"));
+    document.body.appendChild(s);
+  });
+}
+
 export default function CheckoutPage() {
   const { token, ready } = useAuth();
   const router = useRouter();
@@ -121,25 +134,86 @@ export default function CheckoutPage() {
         json: { addressId, paymentMethod: method, couponCode: coupon || undefined },
       });
 
-      // UPI is collected through Razorpay's checkout modal (Razorpay
-      // supports UPI, cards, netbanking, wallet out of the box). Routing
-      // UPI here prevents orders from getting stuck in PENDING with no
-      // payment collection path.
+      // UPI / cards / netbanking / wallet — Razorpay handles all in one modal.
       if (method === "RAZORPAY" || method === "UPI") {
-        const rzp = await api<{ razorpayOrderId: string; amount: number; keyId: string }>(
-          "/api/payments/razorpay/create",
-          { token, method: "POST", json: { orderId: order.id } },
-        );
+        const rzp = await api<{
+          razorpayOrderId: string;
+          amount: number;
+          currency: string;
+          keyId: string;
+        }>("/api/payments/razorpay/create", {
+          token,
+          method: "POST",
+          json: { orderId: order.id },
+        });
         if (!rzp.keyId) {
           alert(
-            "Razorpay is not configured. Add RAZORPAY_KEY_ID/SECRET in apps/api/.env. Order placed in PENDING state — admin will confirm.",
+            "Razorpay is not configured yet. Order placed in PENDING — admin will confirm shortly.",
           );
           router.push(`/orders/${order.id}`);
           return;
         }
-        alert(
-          "Razorpay checkout hook created. Integrate Razorpay Checkout JS (requires live keys).",
-        );
+
+        await loadRazorpayScript();
+        type RazorpayResponse = {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        };
+        type RazorpayInstance = {
+          open: () => void;
+          on: (e: string, h: (resp: { error?: { description?: string } }) => void) => void;
+        };
+        type RazorpayCtor = new (opts: Record<string, unknown>) => RazorpayInstance;
+        const RazorpayCls = (window as unknown as { Razorpay?: RazorpayCtor }).Razorpay;
+        if (!RazorpayCls) {
+          alert("Could not load Razorpay. Try again.");
+          router.push(`/orders/${order.id}`);
+          return;
+        }
+
+        const rzpInstance = new RazorpayCls({
+          key: rzp.keyId,
+          amount: rzp.amount,
+          currency: rzp.currency || "INR",
+          name: "SKT Mart",
+          description: `Order ${order.id.slice(0, 8)}`,
+          order_id: rzp.razorpayOrderId,
+          theme: { color: "#7c3aed" },
+          prefill: {
+            email: undefined,
+            contact: undefined,
+          },
+          notes: { orderId: order.id },
+          handler: async (resp: RazorpayResponse) => {
+            try {
+              await api("/api/payments/razorpay/verify", {
+                token,
+                method: "POST",
+                json: {
+                  orderId: order.id,
+                  razorpayOrderId: resp.razorpay_order_id,
+                  razorpayPaymentId: resp.razorpay_payment_id,
+                  razorpaySignature: resp.razorpay_signature,
+                },
+              });
+              router.push(`/orders/${order.id}`);
+            } catch (e) {
+              alert(`Payment verification failed: ${(e as Error).message}`);
+              router.push(`/orders/${order.id}`);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              router.push(`/orders/${order.id}`);
+            },
+          },
+        });
+        rzpInstance.on("payment.failed", (resp) => {
+          alert(`Payment failed: ${resp.error?.description || "Try another method"}`);
+        });
+        rzpInstance.open();
+        return;
       }
       router.push(`/orders/${order.id}`);
     } catch (e) {
