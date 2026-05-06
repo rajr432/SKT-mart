@@ -59,7 +59,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
   return (
     <div className="container-page py-4 space-y-4">
-      <div className="card p-4 grid md:grid-cols-[minmax(0,1fr)_1.5fr] gap-6">
+      <div className="card-premium p-5 sm:p-6 grid md:grid-cols-[minmax(0,1fr)_1.5fr] gap-6">
         <div>
           <ImageZoomGallery images={product.images} name={product.name} />
           <div className="mt-4">
@@ -68,58 +68,70 @@ export default async function ProductPage({ params }: { params: { slug: string }
         </div>
 
         <div className="space-y-3">
-          <h1 className="text-xl sm:text-2xl font-medium">{product.name}</h1>
-          {product.brand && <p className="text-sm text-gray-600">Brand: {product.brand}</p>}
-          <div className="flex items-center gap-2">
+          {product.brand && (
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">
+              {product.brand}
+            </p>
+          )}
+          <h1 className="font-display text-2xl sm:text-3xl tracking-tightest">{product.name}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
             {product.rating > 0 && (
-              <span className="bg-brand-green text-white text-xs px-2 py-0.5 rounded flex items-center gap-1">
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-medium">
                 {product.rating.toFixed(1)} ★
               </span>
             )}
-            <span className="text-sm text-gray-600">
-              {product.ratingCount} Ratings &amp; {product.ratingCount} Reviews
+            <span className="text-xs text-gray-500">
+              {product.ratingCount} ratings
             </span>
             {product.fAssured && (
-              <span className="tag-pill tag-pill-assured">
-                ✓ Assured
+              <span className="text-[10px] uppercase tracking-wider bg-violet-50 text-accent border border-violet-200 px-2 py-0.5 rounded-full font-medium">
+                Assured
               </span>
             )}
           </div>
-          <div className="flex items-baseline gap-3">
-            <span className="text-2xl font-semibold">{formatPaise(product.price)}</span>
+          <div className="flex items-baseline gap-3 pt-2">
+            <span className="font-display text-3xl tracking-tightest">
+              {formatPaise(product.price)}
+            </span>
             {off > 0 && (
               <>
-                <span className="text-sm text-gray-500 line-through">
+                <span className="text-sm text-gray-400 line-through">
                   {formatPaise(product.mrp)}
                 </span>
-                <span className="text-sm text-brand-green font-semibold">{off}% off</span>
+                <span className="text-sm text-emerald-600 font-medium">{off}% off</span>
               </>
             )}
           </div>
-          {product.price >= 49900 && (
-            <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded px-2 py-1 inline-flex items-center gap-1">
-              <span>ℹ️</span>
-              <span>
-                Platform commission <b>{formatPaise(Math.floor(product.price * 0.1))}</b> (10%)
-                auto-deducted from seller — buyer pays listed price only.
-              </span>
-            </div>
-          )}
           {product.stock <= 0 && (
-            <p className="text-red-600 font-medium text-sm">Out of stock</p>
+            <p className="text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full text-xs font-medium inline-block">
+              Out of stock
+            </p>
           )}
           {product.stock > 0 && product.stock <= 5 && (
-            <p className="text-orange-600 font-medium text-sm">
-              Hurry! Only {product.stock} left.
+            <p className="text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full text-xs font-medium inline-block">
+              Hurry — only {product.stock} left
             </p>
           )}
 
-          <div>
-            <h3 className="font-medium text-gray-700 mt-4">Available Offers</h3>
-            <ul className="text-sm mt-1 space-y-1 text-gray-700">
-              <li>🏷️ Use code <b>WELCOME10</b> for 10% off your first order</li>
-              <li>💳 10% off on Axis Bank Credit Card (T&amp;C apply)</li>
-              <li>🚚 Free delivery on orders above ₹499</li>
+          <div className="pt-2">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400 mb-2">
+              Available offers
+            </p>
+            <ul className="text-sm space-y-1.5 text-gray-700">
+              <li className="flex gap-2">
+                <span className="text-accent">•</span>
+                <span>
+                  Use code <b className="font-medium tracking-tight">WELCOME10</b> for 10% off your first order
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-accent">•</span>
+                <span>10% off on Axis Bank Credit Card (T&amp;C apply)</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-accent">•</span>
+                <span>Free delivery on orders above ₹499</span>
+              </li>
             </ul>
           </div>
 
@@ -140,20 +152,28 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
           <TrustBadges />
 
-          <div>
-            <h3 className="font-medium text-gray-700 mt-4">Description</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-line">{product.description}</p>
+          <div className="pt-1">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400 mb-2">
+              Description
+            </p>
+            <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+              {product.description}
+            </p>
           </div>
 
           {product.specs && Object.keys(product.specs).length > 0 && (
-            <div>
-              <h3 className="font-medium text-gray-700 mt-4">Specifications</h3>
-              <table className="text-sm mt-1 w-full">
+            <div className="pt-1">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400 mb-2">
+                Specifications
+              </p>
+              <table className="text-sm w-full">
                 <tbody>
                   {Object.entries(product.specs).map(([k, v]) => (
-                    <tr key={k} className="border-b">
-                      <td className="py-1 text-gray-500 pr-4 capitalize w-1/3">{k}</td>
-                      <td className="py-1">{String(v)}</td>
+                    <tr key={k} className="border-b border-gray-100">
+                      <td className="py-2 text-gray-400 pr-4 capitalize w-1/3 text-xs uppercase tracking-wider">
+                        {k}
+                      </td>
+                      <td className="py-2 tracking-tight">{String(v)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,8 +182,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
           )}
 
           {product.vendor && (
-            <p className="text-sm text-gray-600 pt-2">
-              Sold by <span className="text-brand font-medium">{product.vendor.storeName}</span>
+            <p className="text-xs text-gray-500 pt-2">
+              Sold by{" "}
+              <span className="text-accent font-medium tracking-tight">
+                {product.vendor.storeName}
+              </span>
             </p>
           )}
 
@@ -190,37 +213,38 @@ export default async function ProductPage({ params }: { params: { slug: string }
       <ReviewForm productId={product.id} />
 
       {product.reviews && product.reviews.length > 0 && (
-        <div className="card p-4">
-          <h2 className="text-lg font-semibold mb-3">Ratings &amp; Reviews</h2>
-          <div className="space-y-3">
+        <div className="card-premium p-5">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Reviews</p>
+          <h2 className="font-display text-lg tracking-tightest mb-4">Ratings &amp; reviews</h2>
+          <div className="space-y-4">
             {product.reviews.map((r) => (
-              <div key={r.id} className="border-b pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="bg-brand-green text-white text-xs px-1.5 py-0.5 rounded">
+              <div key={r.id} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] px-2 py-0.5 rounded-full font-medium">
                     {r.rating} ★
                   </span>
-                  <span className="font-medium text-sm">{r.title ?? ""}</span>
+                  <span className="font-medium tracking-tight text-sm">{r.title ?? ""}</span>
                   {r.verified && (
-                    <span className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded">
-                      Verified Buyer
+                    <span className="text-[10px] uppercase tracking-wider bg-violet-50 text-accent border border-violet-200 px-2 py-0.5 rounded-full">
+                      Verified buyer
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-700 mt-1">{r.comment}</p>
+                <p className="text-sm text-gray-700 mt-2 leading-relaxed">{r.comment}</p>
                 {r.images && r.images.length > 0 && (
-                  <div className="flex gap-2 mt-2 flex-wrap">
+                  <div className="flex gap-2 mt-3 flex-wrap">
                     {r.images.map((url) => (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         key={url}
                         src={url}
                         alt=""
-                        className="h-16 w-16 object-cover border rounded"
+                        className="h-16 w-16 object-cover rounded-2xl border border-gray-100"
                       />
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-[11px] text-gray-400 mt-2">
                   {r.user?.name ?? "Anonymous"} · {new Date(r.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -230,8 +254,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
       )}
 
       {related.items.length > 0 && (
-        <div className="card p-4">
-          <h2 className="text-lg font-semibold mb-3">You may also like</h2>
+        <div className="card-premium p-5">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Curated</p>
+          <h2 className="font-display text-lg tracking-tightest mb-4">You may also like</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {related.items.map((p) => (
               <ProductCard key={p.id} product={p} />
