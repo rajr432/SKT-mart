@@ -29,14 +29,14 @@ const NEXT: Record<string, string | null> = {
 };
 
 const statusColor: Record<string, string> = {
-  PLACED: "bg-blue-100 text-blue-700",
-  CONFIRMED: "bg-indigo-100 text-indigo-700",
-  PACKED: "bg-purple-100 text-purple-700",
-  SHIPPED: "bg-yellow-100 text-yellow-700",
-  OUT_FOR_DELIVERY: "bg-orange-100 text-orange-700",
-  DELIVERED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  RETURNED: "bg-gray-100 text-gray-700",
+  PLACED: "bg-amber-50 text-amber-700 border border-amber-200",
+  CONFIRMED: "bg-sky-50 text-sky-700 border border-sky-200",
+  PACKED: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  SHIPPED: "bg-violet-50 text-violet-700 border border-violet-200",
+  OUT_FOR_DELIVERY: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
+  DELIVERED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  CANCELLED: "bg-rose-50 text-rose-700 border border-rose-200",
+  RETURNED: "bg-gray-50 text-gray-700 border border-gray-200",
 };
 
 export default function VendorOrdersPage() {
@@ -110,11 +110,14 @@ export default function VendorOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-4">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 className="text-lg font-semibold">Orders to fulfill</h2>
+      <div className="card-premium p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Vendor</p>
+            <h2 className="font-display text-xl tracking-tight">Orders to fulfill</h2>
+          </div>
           {msg && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+            <span className="text-[11px] uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">
               {msg}
             </span>
           )}
@@ -126,10 +129,10 @@ export default function VendorOrdersPage() {
               <button
                 key={s}
                 onClick={() => setFilter(s)}
-                className={`shrink-0 px-3 py-1.5 text-xs rounded-full transition ${
+                className={`shrink-0 px-4 py-2 text-xs font-medium rounded-full transition ${
                   filter === s
-                    ? "bg-brand text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-accent text-white shadow-soft"
+                    : "bg-gray-50 text-gray-700 border border-gray-100 hover:border-accent/40 hover:text-accent"
                 }`}
               >
                 {s.replace(/_/g, " ")} ({counts[s] ?? 0})
@@ -139,116 +142,119 @@ export default function VendorOrdersPage() {
         </div>
       </div>
 
-      <div className="card p-4">
-        <div className="space-y-3">
-          {filtered.map((it) => {
-            const next = NEXT[it.status];
-            const canOtp = it.status === "OUT_FOR_DELIVERY";
-            const otpOpen = otpOrderId === it.order.id;
-            return (
-              <div
-                key={it.id}
-                className="border rounded-lg p-3 hover:shadow-sm transition"
-              >
-                <div className="flex items-start justify-between flex-wrap gap-2">
-                  <div className="flex-1 min-w-[220px]">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-semibold">
-                        #{it.order.orderNumber}
-                      </span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${statusColor[it.status] ?? "bg-gray-100"}`}
-                      >
-                        {it.status.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                    <p className="text-sm mt-1">
-                      <span className="font-medium">{it.name}</span>{" "}
-                      <span className="text-gray-500">× {it.quantity}</span>
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {it.order.user.name} · {it.order.address.city}{" "}
-                      — {it.order.address.pincode}
-                      {it.order.address.phone ? ` · ${it.order.address.phone}` : ""}
-                    </p>
-                    <p className="text-[10px] text-gray-400">
-                      {new Date(it.order.placedAt).toLocaleString("en-IN")}
-                    </p>
+      <div className="space-y-3">
+        {filtered.map((it) => {
+          const next = NEXT[it.status];
+          const canOtp = it.status === "OUT_FOR_DELIVERY";
+          const otpOpen = otpOrderId === it.order.id;
+          return (
+            <div
+              key={it.id}
+              className="card-premium p-5 hover:shadow-glow/30 transition"
+            >
+              <div className="flex items-start justify-between flex-wrap gap-3">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-sm font-semibold tracking-tight">
+                      #{it.order.orderNumber}
+                    </span>
+                    <span
+                      className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full ${statusColor[it.status] ?? "bg-gray-50 text-gray-700 border border-gray-200"}`}
+                    >
+                      {it.status.replace(/_/g, " ")}
+                    </span>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold">
-                      {formatPaise(it.price * it.quantity)}
-                    </p>
-                    <div className="flex gap-2 mt-2 flex-wrap justify-end">
-                      {next && (
-                        <button
-                          disabled={busy === it.id}
-                          onClick={() => advance(it.id, next)}
-                          className="text-xs bg-brand text-white px-3 py-1.5 rounded hover:bg-brand-dark disabled:opacity-50"
-                        >
-                          {busy === it.id ? "…" : `Mark ${next.replace(/_/g, " ")}`}
-                        </button>
-                      )}
-                      {canOtp && !otpOpen && (
-                        <button
-                          onClick={() => {
-                            setOtpOrderId(it.order.id);
-                            setOtp("");
-                          }}
-                          className="text-xs bg-brand-green text-white px-3 py-1.5 rounded hover:opacity-90"
-                        >
-                          📱 Verify OTP &amp; Deliver
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <p className="text-sm mt-2">
+                    <span className="font-medium tracking-tight">{it.name}</span>{" "}
+                    <span className="text-gray-400">× {it.quantity}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {it.order.user.name} · {it.order.address.city} — {it.order.address.pincode}
+                    {it.order.address.phone ? ` · ${it.order.address.phone}` : ""}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    {new Date(it.order.placedAt).toLocaleString("en-IN")}
+                  </p>
                 </div>
-
-                {canOtp && otpOpen && (
-                  <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded">
-                    <p className="text-xs text-gray-700 mb-2">
-                      Ask the customer for the 4-digit OTP they received via
-                      email/SMS.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        autoFocus
-                        value={otp}
-                        onChange={(e) =>
-                          setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))
-                        }
-                        maxLength={4}
-                        placeholder="0000"
-                        className="input !w-28 text-center font-mono text-lg tracking-widest"
-                      />
+                <div className="text-right shrink-0">
+                  <p className="font-display text-lg tracking-tight">
+                    {formatPaise(it.price * it.quantity)}
+                  </p>
+                  <div className="flex gap-2 mt-3 flex-wrap justify-end">
+                    {next && (
                       <button
-                        disabled={otp.length !== 4 || busy === it.order.id}
-                        onClick={() => verifyOtp(it.order.id)}
-                        className="text-xs bg-brand-green text-white px-4 py-1.5 rounded disabled:opacity-50"
+                        disabled={busy === it.id}
+                        onClick={() => advance(it.id, next)}
+                        className="text-xs font-medium bg-accent text-white px-4 py-2 rounded-full shadow-soft hover:bg-accent-dark disabled:opacity-50 transition"
                       >
-                        {busy === it.order.id ? "Verifying…" : "Confirm"}
+                        {busy === it.id ? "…" : `Mark ${next.replace(/_/g, " ")}`}
                       </button>
+                    )}
+                    {canOtp && !otpOpen && (
                       <button
                         onClick={() => {
-                          setOtpOrderId(null);
+                          setOtpOrderId(it.order.id);
                           setOtp("");
                         }}
-                        className="text-xs text-gray-600 px-2"
+                        className="text-xs font-medium bg-emerald-600 text-white px-4 py-2 rounded-full shadow-soft hover:bg-emerald-700 transition"
                       >
-                        Cancel
+                        Verify OTP &amp; Deliver
                       </button>
-                    </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <p className="text-sm text-gray-500 py-6 text-center">
-              No orders in {filter.replace(/_/g, " ")}
-            </p>
-          )}
-        </div>
+
+              {canOtp && otpOpen && (
+                <div className="mt-4 p-4 bg-gradient-to-br from-violet-50 to-fuchsia-50/50 border border-violet-100 rounded-2xl">
+                  <p className="text-xs text-gray-700 mb-3">
+                    Ask the customer for the 4-digit OTP they received via email/SMS.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <input
+                      autoFocus
+                      value={otp}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))
+                      }
+                      maxLength={4}
+                      placeholder="0000"
+                      className="input !w-32 text-center font-mono text-lg tracking-widest"
+                    />
+                    <button
+                      disabled={otp.length !== 4 || busy === it.order.id}
+                      onClick={() => verifyOtp(it.order.id)}
+                      className="text-xs font-medium bg-emerald-600 text-white px-5 py-2 rounded-full shadow-soft hover:bg-emerald-700 disabled:opacity-50 transition"
+                    >
+                      {busy === it.order.id ? "Verifying…" : "Confirm"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOtpOrderId(null);
+                        setOtp("");
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700 px-2"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="card-premium p-10 text-center">
+            <div className="mx-auto h-16 w-16 rounded-3xl bg-gradient-to-br from-violet-100 to-fuchsia-100 grid place-items-center mb-4">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-7 w-7 text-accent">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M8 9h8M8 13h8M8 17h5" />
+              </svg>
+            </div>
+            <p className="font-display text-base tracking-tight">No orders in {filter.replace(/_/g, " ")}</p>
+            <p className="text-xs text-gray-400 mt-1">New orders will appear here automatically.</p>
+          </div>
+        )}
       </div>
     </div>
   );

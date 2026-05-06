@@ -43,33 +43,44 @@ export default function VendorWalletPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-6 bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-        <p className="text-sm opacity-80">Vendor wallet balance</p>
-        <p className="text-4xl font-bold mt-2">{formatPaise(balance)}</p>
-        <p className="text-xs mt-2 opacity-80">
-          Used for ad campaigns & platform fees. Payouts credit here automatically.
-        </p>
+      <div className="relative overflow-hidden rounded-3xl text-white p-7 shadow-soft">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-fuchsia-500 to-rose-500" />
+        <div className="absolute -top-16 -right-12 h-44 w-44 rounded-full bg-white/15 blur-3xl" />
+        <div className="absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
+        <div className="relative">
+          <p className="text-[11px] uppercase tracking-[0.3em] opacity-80">Vendor wallet</p>
+          <p className="font-display text-4xl sm:text-5xl tracking-tightest mt-3">{formatPaise(balance)}</p>
+          <p className="text-xs mt-3 opacity-90 max-w-md">
+            Used for ad campaigns &amp; platform fees. Payouts credit here automatically.
+          </p>
+        </div>
       </div>
 
-      <section className="card p-4">
-        <h2 className="font-semibold mb-3">Recharge Wallet</h2>
-        <div className="flex items-center gap-2">
+      <section className="card-premium p-5">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Recharge</p>
+        <h2 className="font-display text-base tracking-tight mb-4">Top up wallet</h2>
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             type="number"
             value={amt}
             onChange={(e) => setAmt(Number(e.target.value))}
-            className="border rounded px-3 py-2 text-sm w-40"
+            className="input !w-44"
           />
-          <span className="text-xs text-gray-500">(paise)</span>
+          <span className="text-xs text-gray-400">(paise)</span>
           <button onClick={recharge} className="btn-primary">
             Recharge via Razorpay
           </button>
-          <span className="text-xs text-green-600 ml-2">{msg}</span>
+          {msg && (
+            <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+              {msg}
+            </span>
+          )}
         </div>
       </section>
 
-      <section className="card p-4">
-        <h2 className="font-semibold mb-3">Payouts</h2>
+      <section className="card-premium p-5">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Vendor</p>
+        <h2 className="font-display text-base tracking-tight mb-4">Payouts</h2>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-gray-500 border-b">
             <tr>
@@ -93,7 +104,7 @@ export default function VendorWalletPage() {
                 <td>-{formatPaise(p.totalAdSpend)}</td>
                 <td className="font-semibold">{formatPaise(p.netAmount)}</td>
                 <td>
-                  <span className="px-2 py-0.5 rounded bg-gray-100 text-xs">{p.status}</span>
+                  <span className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700">{p.status}</span>
                 </td>
                 <td className="text-[11px] font-mono">{p.utr ?? "-"}</td>
               </tr>
@@ -109,8 +120,9 @@ export default function VendorWalletPage() {
         </table>
       </section>
 
-      <section className="card p-4">
-        <h2 className="font-semibold mb-3">Transactions</h2>
+      <section className="card-premium p-5">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Activity</p>
+        <h2 className="font-display text-base tracking-tight mb-4">Transactions</h2>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-gray-500 border-b">
             <tr>
@@ -128,8 +140,10 @@ export default function VendorWalletPage() {
                 <td className="py-2 text-xs">{new Date(t.createdAt).toLocaleString()}</td>
                 <td>
                   <span
-                    className={`px-2 py-0.5 rounded text-xs ${
-                      t.type === "CREDIT" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full border ${
+                      t.type === "CREDIT"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200"
                     }`}
                   >
                     {t.type}

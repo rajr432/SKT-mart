@@ -38,14 +38,14 @@ interface Analytics {
 }
 
 const statusColor: Record<string, string> = {
-  PLACED: "bg-blue-100 text-blue-700",
-  CONFIRMED: "bg-indigo-100 text-indigo-700",
-  PACKED: "bg-purple-100 text-purple-700",
-  SHIPPED: "bg-yellow-100 text-yellow-700",
-  OUT_FOR_DELIVERY: "bg-orange-100 text-orange-700",
-  DELIVERED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  RETURNED: "bg-gray-100 text-gray-700",
+  PLACED: "bg-amber-50 text-amber-700 border border-amber-200",
+  CONFIRMED: "bg-sky-50 text-sky-700 border border-sky-200",
+  PACKED: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  SHIPPED: "bg-violet-50 text-violet-700 border border-violet-200",
+  OUT_FOR_DELIVERY: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
+  DELIVERED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  CANCELLED: "bg-rose-50 text-rose-700 border border-rose-200",
+  RETURNED: "bg-gray-50 text-gray-700 border border-gray-200",
 };
 
 export default function VendorDashboard() {
@@ -65,33 +65,37 @@ export default function VendorDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-5 bg-gradient-to-r from-brand to-brand-green text-white">
-        <h1 className="text-xl font-semibold">
-          Welcome{user?.vendor ? `, ${user.vendor.storeName}` : ""} 👋
-        </h1>
-        {user?.vendor && (
-          <p className="text-xs mt-1 opacity-90">
-            Store status:{" "}
-            <span className="font-semibold">
-              {user.vendor.status}
-            </span>
-            {" · "}
-            <Link
-              href={`/store/${user.vendor.slug}`}
-              className="underline hover:opacity-80"
-            >
-              View public storefront →
-            </Link>
-          </p>
-        )}
+      <div className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-7 shadow-soft">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-fuchsia-500 to-rose-500" />
+        <div className="absolute -top-16 -right-12 h-44 w-44 rounded-full bg-white/15 blur-3xl" />
+        <div className="absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
+        <div className="relative">
+          <p className="text-[11px] uppercase tracking-[0.3em] opacity-80">Vendor dashboard</p>
+          <h1 className="font-display text-2xl sm:text-3xl tracking-tightest mt-1">
+            Welcome{user?.vendor ? `, ${user.vendor.storeName}` : ""}
+          </h1>
+          {user?.vendor && (
+            <p className="text-xs mt-2 opacity-90">
+              Status:{" "}
+              <span className="font-semibold">{user.vendor.status}</span>
+              {" · "}
+              <Link
+                href={`/store/${user.vendor.slug}`}
+                className="underline underline-offset-4 hover:opacity-80"
+              >
+                View public storefront →
+              </Link>
+            </p>
+          )}
+        </div>
       </div>
 
       {loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card p-4 animate-pulse">
-              <div className="h-3 bg-gray-200 rounded w-20 mb-2" />
-              <div className="h-7 bg-gray-200 rounded w-16" />
+            <div key={i} className="card-premium p-4">
+              <div className="skeleton-line w-20 h-2 mb-3" />
+              <div className="skeleton-line w-24 h-5" />
             </div>
           ))}
         </div>
@@ -105,87 +109,77 @@ export default function VendorDashboard() {
               label="Revenue (30d)"
               value={formatPaise(a.totals.revenue)}
               sub={`${a.totals.orders} items`}
-              icon="💰"
-              color="from-green-500 to-emerald-600"
+              accent="from-violet-500 to-fuchsia-500"
             />
             <Stat
               label="Net earnings"
               value={formatPaise(a.totals.netEarnings)}
               sub="after commission"
-              icon="📈"
-              color="from-blue-500 to-indigo-600"
+              accent="from-fuchsia-500 to-rose-500"
             />
             <Stat
               label="Units sold"
               value={String(a.totals.units)}
               sub="last 30 days"
-              icon="📦"
-              color="from-purple-500 to-pink-600"
+              accent="from-rose-500 to-amber-500"
             />
             <Stat
               label="Low stock"
               value={String(a.lowStock.length)}
               sub="≤ 5 units"
-              icon="⚠️"
-              color="from-orange-500 to-red-600"
+              accent="from-amber-500 to-violet-500"
             />
           </div>
 
           {/* Quick actions */}
-          <div className="card p-4">
-            <h3 className="text-sm font-semibold mb-3">Quick actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-              <Link
-                href="/vendor/products/new"
-                className="p-3 rounded-lg border hover:border-brand hover:bg-brand/5 text-center"
-              >
-                ➕ Add product
-              </Link>
-              <Link
-                href="/vendor/orders"
-                className="p-3 rounded-lg border hover:border-brand hover:bg-brand/5 text-center"
-              >
-                📋 Orders
-              </Link>
-              <Link
-                href="/vendor/products"
-                className="p-3 rounded-lg border hover:border-brand hover:bg-brand/5 text-center"
-              >
-                🛒 My products
-              </Link>
-              <Link
-                href="/vendor/wallet"
-                className="p-3 rounded-lg border hover:border-brand hover:bg-brand/5 text-center"
-              >
-                💳 Wallet & payouts
-              </Link>
+          <div className="card-premium p-5">
+            <h3 className="text-[10px] uppercase tracking-[0.22em] text-gray-400 mb-4">Quick actions</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              {[
+                { href: "/vendor/products/new", label: "Add product", icon: "plus" as const },
+                { href: "/vendor/orders", label: "Orders", icon: "orders" as const },
+                { href: "/vendor/products", label: "My products", icon: "box" as const },
+                { href: "/vendor/wallet", label: "Wallet & payouts", icon: "wallet" as const },
+              ].map((q) => (
+                <Link
+                  key={q.href}
+                  href={q.href}
+                  className="group flex items-center gap-3 p-4 rounded-2xl border border-gray-100 hover:border-accent/40 hover:bg-accent/5 transition"
+                >
+                  <span className="grid place-items-center h-10 w-10 rounded-2xl bg-violet-50 text-accent group-hover:bg-accent group-hover:text-white transition">
+                    <QuickIcon name={q.icon} />
+                  </span>
+                  <span className="font-medium tracking-tight">{q.label}</span>
+                </Link>
+              ))}
             </div>
           </div>
 
           {/* Revenue chart */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">Revenue — last 30 days</h3>
-              <span className="text-xs text-gray-500">
-                {formatPaise(a.totals.revenue)} total
+          <div className="card-premium p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-display text-base tracking-tight">Revenue</h3>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400 mt-0.5">Last 30 days</p>
+              </div>
+              <span className="font-display text-lg tracking-tight text-accent">
+                {formatPaise(a.totals.revenue)}
               </span>
             </div>
             {a.totals.revenue === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-6">
+              <p className="text-sm text-gray-400 text-center py-8">
                 No sales in the last 30 days
               </p>
             ) : (
-              <div className="flex items-end gap-0.5 h-28">
+              <div className="flex items-end gap-1 h-32">
                 {a.series.map((s) => (
                   <div
                     key={s.date}
-                    className="flex-1 bg-gradient-to-t from-brand to-brand-green rounded-t hover:opacity-80 transition relative group min-h-[2px]"
-                    style={{
-                      height: `${(s.revenue / maxRev) * 100}%`,
-                    }}
+                    className="flex-1 bg-gradient-to-t from-violet-500 to-fuchsia-400 rounded-t-lg hover:opacity-90 transition relative group min-h-[2px]"
+                    style={{ height: `${(s.revenue / maxRev) * 100}%` }}
                     title={`${s.date}: ${formatPaise(s.revenue)} (${s.units} units)`}
                   >
-                    <span className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap bg-black text-white px-1.5 py-0.5 rounded">
+                    <span className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap bg-gray-900 text-white px-2 py-1 rounded-full">
                       {s.date.slice(5)}: {formatPaise(s.revenue)}
                     </span>
                   </div>
@@ -196,8 +190,8 @@ export default function VendorDashboard() {
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* Top products */}
-            <div className="card p-4">
-              <h3 className="text-sm font-semibold mb-3">🏆 Top products</h3>
+            <div className="card-premium p-5">
+              <h3 className="font-display text-base tracking-tight mb-4">Top products</h3>
               {a.topProducts.length === 0 ? (
                 <p className="text-sm text-gray-500">No sales yet.</p>
               ) : (
@@ -223,8 +217,8 @@ export default function VendorDashboard() {
             </div>
 
             {/* Low stock */}
-            <div className="card p-4">
-              <h3 className="text-sm font-semibold mb-3">⚠️ Low stock</h3>
+            <div className="card-premium p-5">
+              <h3 className="font-display text-base tracking-tight mb-4">Low stock</h3>
               {a.lowStock.length === 0 ? (
                 <p className="text-sm text-gray-500">All products are in stock.</p>
               ) : (
@@ -242,7 +236,7 @@ export default function VendorDashboard() {
                         {p.name}
                       </Link>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded ${p.stock === 0 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}`}
+                        className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full border ${p.stock === 0 ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
                       >
                         {p.stock === 0 ? "Out of stock" : `${p.stock} left`}
                       </span>
@@ -254,13 +248,10 @@ export default function VendorDashboard() {
           </div>
 
           {/* Recent orders */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">Recent orders</h3>
-              <Link
-                href="/vendor/orders"
-                className="text-xs text-brand hover:underline"
-              >
+          <div className="card-premium p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-base tracking-tight">Recent orders</h3>
+              <Link href="/vendor/orders" className="link-accent text-xs">
                 View all →
               </Link>
             </div>
@@ -291,7 +282,7 @@ export default function VendorDashboard() {
                         <td>{formatPaise(r.price * r.quantity)}</td>
                         <td>
                           <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded ${statusColor[r.status] ?? "bg-gray-100"}`}
+                            className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${statusColor[r.status] ?? "bg-gray-50 text-gray-700 border border-gray-200"}`}
                           >
                             {r.status.replace(/_/g, " ")}
                           </span>
@@ -313,28 +304,67 @@ function Stat({
   label,
   value,
   sub,
-  icon,
-  color,
+  accent,
 }: {
   label: string;
   value: string | number;
   sub?: string;
-  icon?: string;
-  color?: string;
+  accent?: string;
 }) {
   return (
-    <div className="card p-4 relative overflow-hidden">
+    <div className="card-premium p-5 relative overflow-hidden">
       <div
-        className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${color ?? "from-brand to-brand-green"}`}
+        className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${
+          accent ?? "from-violet-500 to-fuchsia-500"
+        }`}
       />
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs uppercase text-gray-500">{label}</p>
-          <p className="text-xl font-semibold mt-1">{value}</p>
-          {sub && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
-        </div>
-        {icon && <span className="text-2xl">{icon}</span>}
-      </div>
+      <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">{label}</p>
+      <p className="font-display text-2xl tracking-tight mt-1.5">{value}</p>
+      {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
     </div>
   );
+}
+
+function QuickIcon({ name }: { name: "plus" | "orders" | "box" | "wallet" }) {
+  const c = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.7,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-[18px] w-[18px]",
+  };
+  switch (name) {
+    case "plus":
+      return (
+        <svg {...c}>
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      );
+    case "orders":
+      return (
+        <svg {...c}>
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path d="M8 9h8M8 13h8M8 17h5" />
+        </svg>
+      );
+    case "box":
+      return (
+        <svg {...c}>
+          <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+          <path d="M3 8l9 5 9-5" />
+          <path d="M12 13v8" />
+        </svg>
+      );
+    case "wallet":
+      return (
+        <svg {...c}>
+          <rect x="3" y="6" width="18" height="13" rx="2" />
+          <path d="M16 13.5h2.5" />
+          <path d="M3 9h13a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H3" />
+        </svg>
+      );
+  }
 }
