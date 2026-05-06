@@ -12,6 +12,9 @@ interface Pincode {
   etaDays: number;
 }
 
+const inputCls =
+  "w-full rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-2.5 text-sm outline-none focus:border-accent/40 focus:bg-white transition";
+
 export default function AdminPincodesPage() {
   const { token } = useAuth();
   const [items, setItems] = useState<Pincode[]>([]);
@@ -40,6 +43,7 @@ export default function AdminPincodesPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const save = async (e: React.FormEvent) => {
@@ -85,39 +89,43 @@ export default function AdminPincodesPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="card p-4">
-        <h1 className="text-xl font-semibold">Pincode Serviceability</h1>
-        <p className="text-sm text-gray-500">
-          Manage delivery ETA & serviceable zones. Customers see this on PDP & checkout.
+    <div className="space-y-5">
+      <div className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Logistics</p>
+        <h1 className="font-display text-2xl tracking-tightest">Pincode serviceability</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Manage delivery ETA &amp; serviceable zones. Customers see this on PDP &amp;
+          checkout.
         </p>
       </div>
 
-      <form onSubmit={save} className="card p-4 grid md:grid-cols-5 gap-3">
+      <form onSubmit={save} className="card-premium p-5 sm:p-6 grid md:grid-cols-5 gap-3">
         <input
-          className="input"
+          className={`${inputCls} font-mono`}
           placeholder="Pincode (6 digits)"
           value={form.pincode}
           maxLength={6}
-          onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, "") })}
+          onChange={(e) =>
+            setForm({ ...form, pincode: e.target.value.replace(/\D/g, "") })
+          }
           required
         />
         <input
-          className="input"
+          className={inputCls}
           placeholder="City"
           value={form.city}
           onChange={(e) => setForm({ ...form, city: e.target.value })}
           required
         />
         <input
-          className="input"
+          className={inputCls}
           placeholder="State"
           value={form.state}
           onChange={(e) => setForm({ ...form, state: e.target.value })}
           required
         />
         <input
-          className="input"
+          className={inputCls}
           type="number"
           placeholder="ETA days"
           value={form.etaDays}
@@ -125,83 +133,131 @@ export default function AdminPincodesPage() {
           min={1}
           max={30}
         />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm px-1">
           <input
             type="checkbox"
             checked={form.serviceable}
             onChange={(e) => setForm({ ...form, serviceable: e.target.checked })}
+            className="accent-accent h-4 w-4"
           />
-          Serviceable
+          <span className="text-gray-700">Serviceable</span>
         </label>
-        <button className="btn-primary md:col-span-5">Add / Update</button>
+        <button className="btn-primary btn-pill md:col-span-5">Add / Update</button>
       </form>
 
-      <div className="card p-4">
-        <h2 className="font-semibold mb-2">Bulk upload (CSV)</h2>
-        <p className="text-xs text-gray-500 mb-2">
-          Format per line: <code>pincode,city,state,etaDays</code>. Up to 5000 rows.
+      <div className="card-premium p-5 sm:p-6">
+        <h2 className="font-display text-lg tracking-tightest">Bulk upload (CSV)</h2>
+        <p className="text-[11px] uppercase tracking-wider text-gray-500 mt-1 mb-3">
+          Format per line: <code className="font-mono">pincode,city,state,etaDays</code>{" "}
+          · up to 5000 rows
         </p>
         <textarea
-          className="input w-full h-32 font-mono text-xs"
+          className={`${inputCls} h-32 font-mono text-[12px] resize-none`}
           placeholder="110001,New Delhi,Delhi,3&#10;400001,Mumbai,Maharashtra,2"
           value={bulkCsv}
           onChange={(e) => setBulkCsv(e.target.value)}
         />
-        <div className="flex items-center gap-3 mt-2">
-          <button onClick={bulkUpload} className="btn-primary">Upload</button>
-          <span className="text-sm text-green-600">{bulkMsg}</span>
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          <button onClick={bulkUpload} className="btn-primary btn-pill">
+            Upload
+          </button>
+          {bulkMsg && (
+            <span className="text-sm text-emerald-600">{bulkMsg}</span>
+          )}
         </div>
       </div>
 
-      <div className="card p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <input
-            className="input flex-1"
-            placeholder="Search pincode / city / state"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <button onClick={load} className="btn-outline">Search</button>
+      <div className="card-premium p-5 sm:p-6">
+        <div className="flex items-end justify-between gap-3 flex-wrap mb-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Library</p>
+            <h2 className="font-display text-2xl tracking-tightest">All pincodes</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                className="rounded-full border border-gray-100 bg-gray-50/60 pl-10 pr-4 py-2 text-sm outline-none focus:border-accent/40 focus:bg-white transition"
+                placeholder="Search pincode / city / state"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && load()}
+              />
+            </div>
+            <button onClick={load} className="btn-outline btn-pill text-xs">
+              Search
+            </button>
+          </div>
         </div>
+
         {loading ? (
-          <p>Loading…</p>
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton-shimmer h-12 w-full rounded-2xl" />
+            ))}
+          </div>
         ) : items.length === 0 ? (
-          <p className="text-gray-500">No pincodes configured yet.</p>
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-violet-50 text-accent">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="h-6 w-6"
+              >
+                <path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12Z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-500">No pincodes configured yet.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-hidden rounded-2xl border border-gray-100">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-gray-500">
-                <tr>
-                  <th className="py-1">Pincode</th>
-                  <th>City</th>
-                  <th>State</th>
-                  <th>ETA</th>
-                  <th>Status</th>
-                  <th></th>
+              <thead>
+                <tr className="bg-gray-50/60 text-left">
+                  <Th>Pincode</Th>
+                  <Th>City</Th>
+                  <Th>State</Th>
+                  <Th>ETA</Th>
+                  <Th>Status</Th>
+                  <Th> </Th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {items.map((p) => (
-                  <tr key={p.pincode} className="border-t">
-                    <td className="py-1 font-mono">{p.pincode}</td>
-                    <td>{p.city}</td>
-                    <td>{p.state}</td>
-                    <td>{p.etaDays}d</td>
-                    <td>
+                  <tr key={p.pincode} className="hover:bg-violet-50/30 transition">
+                    <td className="px-4 py-3 font-mono font-semibold tracking-tight">
+                      {p.pincode}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{p.city}</td>
+                    <td className="px-4 py-3 text-gray-700">{p.state}</td>
+                    <td className="px-4 py-3 text-accent">{p.etaDays}d</td>
+                    <td className="px-4 py-3">
                       <span
-                        className={
+                        className={`inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                           p.serviceable
-                            ? "text-green-700 text-xs"
-                            : "text-red-600 text-xs"
-                        }
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
                       >
                         {p.serviceable ? "Serviceable" : "Non-serviceable"}
                       </span>
                     </td>
-                    <td>
+                    <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => del(p.pincode)}
-                        className="text-red-600 text-xs"
+                        className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 transition"
                       >
                         Delete
                       </button>
@@ -214,5 +270,13 @@ export default function AdminPincodesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+  return (
+    <th className="px-4 py-2.5 text-[10px] uppercase tracking-[0.18em] font-semibold text-gray-400">
+      {children}
+    </th>
   );
 }
