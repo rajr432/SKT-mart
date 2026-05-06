@@ -28,10 +28,16 @@ const config: Config = {
         "4xl": "2rem",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Plus Jakarta Sans", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06)",
+        soft: "0 4px 24px -8px rgb(0 0 0 / 0.08)",
+        glow: "0 8px 32px -8px rgb(124 58 237 / 0.35)",
+      },
+      letterSpacing: {
+        tightest: "-0.04em",
       },
     },
   },

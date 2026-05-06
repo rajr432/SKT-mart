@@ -8,8 +8,17 @@
 
 html,
 body {
-  background-color: #f1f3f6;
-  color: #212121;
+  background-color: #fafafa;
+  color: #0a0a0a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+  font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display), "Plus Jakarta Sans", var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .container-page {
@@ -17,19 +26,19 @@ body {
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center bg-brand text-white font-medium px-4 py-2 rounded-sm hover:bg-brand-dark transition;
+  @apply inline-flex items-center justify-center bg-accent text-white font-medium px-5 py-2.5 rounded-full hover:bg-accent-dark transition shadow-soft;
 }
 .btn-yellow {
-  @apply inline-flex items-center justify-center bg-brand-yellow text-white font-semibold px-4 py-2 rounded-sm hover:brightness-95 transition;
+  @apply inline-flex items-center justify-center bg-accent text-white font-semibold px-5 py-2.5 rounded-full hover:bg-accent-dark transition shadow-soft;
 }
 .btn-outline {
-  @apply inline-flex items-center justify-center border border-gray-300 bg-white px-4 py-2 rounded-sm hover:bg-gray-50 transition;
+  @apply inline-flex items-center justify-center border border-gray-200 bg-white px-5 py-2.5 rounded-full hover:bg-gray-50 transition;
 }
 .input {
-  @apply w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-brand;
+  @apply w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition;
 }
 .card {
-  @apply bg-white shadow-card rounded-sm;
+  @apply bg-white shadow-soft rounded-2xl;
 }
 
 /* ============ 3D animations ============ */
