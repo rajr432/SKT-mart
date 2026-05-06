@@ -61,20 +61,24 @@ export default function AdminBannersPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="card p-4 md:p-6">
-        <h2 className="font-semibold mb-3">Add banner</h2>
-        <form onSubmit={add} className="grid gap-3">
+    <div className="space-y-5">
+      <div className="card-premium p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Content</p>
+        <h2 className="font-display text-2xl tracking-tightest mb-1">Add banner</h2>
+        <p className="text-xs text-gray-500 mb-5">
+          Full image hi dikhega — jitna upload karoge utna show hoga, koi crop nahi.
+        </p>
+        <form onSubmit={add} className="grid gap-3.5">
           <div className="grid md:grid-cols-2 gap-3">
             <input
-              className="input"
+              className="rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3 text-sm outline-none focus:border-accent/40 focus:bg-white transition"
               placeholder="Title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               required
             />
             <input
-              className="input"
+              className="rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3 text-sm outline-none focus:border-accent/40 focus:bg-white transition"
               placeholder="Link URL (optional)"
               value={form.link}
               onChange={(e) => setForm({ ...form, link: e.target.value })}
@@ -87,9 +91,9 @@ export default function AdminBannersPage() {
             placeholder="Paste banner image URL or tap Upload to pick from gallery"
             aspect="aspect-[4/1]"
           />
-          <div className="grid md:grid-cols-[120px_1fr] gap-3 items-center">
+          <div className="grid sm:grid-cols-[140px_1fr] gap-3 items-center">
             <input
-              className="input"
+              className="rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3 text-sm outline-none focus:border-accent/40 focus:bg-white transition"
               type="number"
               placeholder="Position"
               value={form.position}
@@ -97,52 +101,82 @@ export default function AdminBannersPage() {
                 setForm({ ...form, position: parseInt(e.target.value || "0", 10) })
               }
             />
-            <button className="btn-primary" disabled={busy}>
+            <button
+              className="btn-primary btn-pill"
+              disabled={busy}
+            >
               {busy ? "Adding…" : "Add banner"}
             </button>
           </div>
         </form>
       </div>
 
-      <div className="card p-4">
-        <h2 className="font-semibold mb-3">All banners ({items.length})</h2>
-        {items.length === 0 && (
-          <p className="text-sm text-gray-500">No banners yet.</p>
-        )}
-        <div className="space-y-3">
-          {items.map((b) => (
-            <div key={b.id} className="flex gap-3 items-center border-b last:border-b-0 pb-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={b.image}
-                alt={b.title}
-                className="w-28 h-14 object-cover rounded border"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{b.title}</p>
-                <p className="text-xs text-gray-500 truncate">
-                  pos {b.position} · {b.link || "no link"}
-                </p>
-              </div>
-              <button
-                onClick={() => toggle(b)}
-                className={`text-xs px-2 py-1 rounded ${
-                  b.active
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                {b.active ? "Active" : "Hidden"}
-              </button>
-              <button
-                onClick={() => del(b.id)}
-                className="text-red-600 text-xs hover:underline"
-              >
-                Delete
-              </button>
-            </div>
-          ))}
+      <div className="card-premium p-5 sm:p-6">
+        <div className="flex items-end justify-between gap-3 flex-wrap mb-5">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Library</p>
+            <h2 className="font-display text-2xl tracking-tightest">All banners</h2>
+          </div>
+          <span className="text-[11px] uppercase tracking-wider text-gray-500">
+            {items.length} banner{items.length === 1 ? "" : "s"}
+          </span>
         </div>
+        {items.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-violet-50 text-accent">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="h-6 w-6"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="8" cy="10" r="1.5" />
+                <path d="m21 17-5-5-9 9" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-500">No banners yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map((b) => (
+              <div
+                key={b.id}
+                className="flex gap-3 items-center rounded-2xl border border-gray-100 p-3 hover:border-accent/30 transition"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={b.image}
+                  alt={b.title}
+                  className="w-28 h-16 sm:w-32 sm:h-20 object-cover rounded-2xl border border-gray-100"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium tracking-tight truncate">{b.title}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                    Position {b.position} · {b.link || "no link"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toggle(b)}
+                  className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                    b.active
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  {b.active ? "Active" : "Hidden"}
+                </button>
+                <button
+                  onClick={() => del(b.id)}
+                  className="text-[10px] uppercase tracking-wider text-rose-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
