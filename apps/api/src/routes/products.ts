@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../middleware/error";
 import type { Prisma } from "@prisma/client";
+import { getSponsoredProductIds } from "../lib/ads";
 
 const router = Router();
 
@@ -17,11 +18,20 @@ router.get("/", async (req, res, next) => {
       rating,
       fAssured,
       sort,
+      ids,
       page = "1",
       limit = "24",
     } = req.query as Record<string, string | undefined>;
 
     const where: Prisma.ProductWhereInput = { published: true };
+    if (ids) {
+      const list = ids.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 60);
+      if (list.length === 0) {
+        res.json({ items: [], sponsored: [], total: 0, page: 1, limit: 0 });
+        return;
+      }
+      where.id = { in: list };
+    }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: "insensitive" } },
@@ -72,7 +82,31 @@ router.get("/", async (req, res, next) => {
       prisma.product.count({ where }),
     ]);
 
-    res.json({ items, total, page: Number(page), limit: take });
+    // Add sponsored products at top (1st page only)
+    let sponsored: typeof items = [];
+    if (Number(page) === 1) {
+      const categoryId = category
+        ? (await prisma.category.findUnique({ where: { slug: category } }))?.id
+        : undefined;
+      const sponsoredIds = await getSponsoredProductIds(categoryId, 3);
+      if (sponsoredIds.length > 0) {
+        sponsored = await prisma.product.findMany({
+          where: { id: { in: sponsoredIds }, published: true },
+          include: {
+            images: { orderBy: { position: "asc" }, take: 1 },
+            vendor: { select: { storeName: true, slug: true } },
+            category: { select: { name: true, slug: true } },
+          },
+        });
+      }
+    }
+
+    // Log search query
+    if (q) {
+      prisma.searchLog.create({ data: { query: q, results: total } }).catch(() => {});
+    }
+
+    res.json({ items, sponsored, total, page: Number(page), limit: take });
   } catch (e) {
     next(e);
   }
@@ -94,7 +128,20 @@ router.get("/:slug", async (req, res, next) => {
       },
     });
     if (!product) throw new HttpError(404, "Product not found");
+    // Count views asynchronously
+    prisma.product.update({ where: { id: product.id }, data: { views: { increment: 1 } } }).catch(() => {});
     res.json({ product });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/meta/trending", async (_req, res, next) => {
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ query: string; c: bigint }>>(
+      `SELECT query, COUNT(*)::bigint as c FROM "SearchLog" WHERE "createdAt" > NOW() - INTERVAL '14 days' GROUP BY query ORDER BY c DESC LIMIT 10`,
+    );
+    res.json({ items: rows.map((r) => ({ query: r.query, count: Number(r.c) })) });
   } catch (e) {
     next(e);
   }

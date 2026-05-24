@@ -8,7 +8,6 @@ interface PincodeInfo {
   city?: string;
   state?: string;
   serviceable: boolean;
-  codAvailable: boolean;
   etaDays: number | null;
 }
 
@@ -52,7 +51,6 @@ export default function PincodeCheck() {
           {info.serviceable ? (
             <span className="text-brand-green">
               ✓ Delivers to {info.city}, {info.state} in {info.etaDays} days
-              {info.codAvailable ? " · COD available" : ""}
             </span>
           ) : (
             <span className="text-red-600">✗ Not serviceable at this pincode</span>

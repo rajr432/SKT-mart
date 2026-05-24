@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: skt-mart-api
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: .
+    buildCommand: npm install --workspaces --include-workspace-root --no-audit --no-fund && cd apps/api && npx prisma generate && npm run build
+    # `db push` WITHOUT `--accept-data-loss`: additive schema changes (new
+    # columns, new indexes, new tables) still apply on every deploy, but any
+    # change Prisma classifies as destructive (drop column, drop table,
+    # narrow type) will abort the deploy instead of silently dropping prod
+    # data. This repo has no `prisma/migrations` directory yet, so we can't
+    # switch to `prisma migrate deploy`; the safer intermediate is to keep
+    # `db push` but fail loud on destructive changes so they land in an
+    # explicit migration PR.
+    startCommand: cd apps/api && npx prisma db push --skip-generate && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: OTP_PROVIDER
+        value: stub
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      # Shared secret for cron endpoints (e.g. /api/abandoned-cart/run).
+      # Auto-generated; copy this value into your external scheduler
+      # (cron-job.org / GitHub Actions schedule / UptimeRobot heartbeat).
+      - key: CRON_SECRET
+        generateValue: true
+      # Public URL of this service. Used by the in-process keep-alive
+      # ping (every 10 min) so the Render free-tier dyno never sleeps
+      # and the next user gets an instant response instead of a 30-50s
+      # cold start.
+      - key: SELF_URL
+        value: https://skt-mart-api.onrender.com

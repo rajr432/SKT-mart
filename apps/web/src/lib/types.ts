@@ -54,6 +54,9 @@ export interface Product {
   category?: Category;
   specs?: Record<string, any> | null;
   reviews?: Review[];
+  videoUrl?: string | null;
+  metaTitle?: string | null;
+  metaDesc?: string | null;
 }
 
 export interface Review {
@@ -132,4 +135,124 @@ export interface Coupon {
   maxDiscount?: number | null;
   expiresAt?: string | null;
   active: boolean;
+  usageLimit?: number | null;
+  usedCount?: number;
+}
+
+export interface WalletTransaction {
+  id: string;
+  type: "CREDIT" | "DEBIT";
+  reason: string;
+  amountPaise: number;
+  balanceAfter: number;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface AdCampaign {
+  id: string;
+  productId: string;
+  name: string;
+  budgetPaise: number;
+  spentPaise: number;
+  bidPaise: number;
+  startsAt: string;
+  endsAt?: string | null;
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "REJECTED";
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  keyword?: string | null;
+  product?: { name: string; images: ProductImage[] };
+}
+
+export interface Payout {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  grossSales: number;
+  totalCommission: number;
+  totalRefunds: number;
+  totalAdSpend: number;
+  netAmount: number;
+  status: "PENDING" | "PROCESSING" | "PAID" | "FAILED";
+  utr?: string | null;
+  paidAt?: string | null;
+  vendor?: { storeName: string; slug: string };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link?: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface ReturnRequest {
+  id: string;
+  rmaNumber: string;
+  orderId: string;
+  reason: string;
+  description?: string | null;
+  refundMode: string;
+  status: string;
+  refundPaise: number;
+  createdAt: string;
+  items: Array<{ id: string; productId: string; quantity: number; refundPaise: number }>;
+}
+
+export interface AppSettings {
+  commissionPercent: number;
+  commissionThreshold: number;
+  commissionPercentBelow: number;
+  freeShippingMin: number;
+  shippingFee: number;
+  taxPercent: number;
+  loyaltyEarnPer100: number;
+  loyaltyValuePaise: number;
+  loyaltyMaxRedeemPct: number;
+  referralBonusPaise: number;
+  adMinBudgetPaise: number;
+  adClickCostPaise: number;
+  adImpressionCostPaise: number;
+  siteName: string;
+  supportEmail: string;
+  supportPhone: string;
+  maintenanceMode: boolean;
+  emiEnabled?: boolean;
+  emiMinAmountPaise?: number;
+  emiTenures?: number[];
+  emiInterestPercent?: number;
+  exitIntentCouponCode?: string;
+  exitIntentMessage?: string;
+  announcementBar?: string;
+  announcementLink?: string | null;
+  codEnabled?: boolean;
+  codMaxOrderPaise?: number;
+  codFeePaise?: number;
+  returnWindowDays?: number;
+  walletCashbackTiers?: Array<{ minPaise: number; cashbackPaise: number }>;
+  brandLogo?: string | null;
+  brandFavicon?: string | null;
+  brandPrimary?: string;
+  brandAccent?: string;
+  brandDark?: string;
+  footerAddress?: string;
+  footerGstin?: string;
+  footerCopyright?: string;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialTwitter?: string | null;
+  socialYoutube?: string | null;
+  socialWhatsapp?: string | null;
+  payRazorpayEnabled?: boolean;
+  payWalletEnabled?: boolean;
+  payUpiEnabled?: boolean;
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroCtaText?: string | null;
+  heroCtaLink?: string | null;
 }

@@ -17,19 +17,103 @@ import orderRouter from "./routes/orders";
 import reviewRouter from "./routes/reviews";
 import couponRouter from "./routes/coupons";
 import bannerRouter from "./routes/banners";
+import brandsRouter from "./routes/brands";
 import pincodeRouter from "./routes/pincodes";
 import vendorRouter from "./routes/vendor";
 import adminRouter from "./routes/admin";
 import paymentRouter from "./routes/payments";
-import uploadRouter from "./routes/upload";
+import uploadRouter, { imagesRouter } from "./routes/upload";
 import searchRouter from "./routes/search";
+import settingsRouter from "./routes/settings";
+import walletRouter from "./routes/wallet";
+import adsRouter from "./routes/ads";
+import payoutsRouter from "./routes/payouts";
+import returnsRouter from "./routes/returns";
+import notificationsRouter from "./routes/notifications";
+import loyaltyRouter from "./routes/loyalty";
+import referralRouter from "./routes/referral";
+import giftcardsRouter from "./routes/giftcards";
+import qaRouter from "./routes/qa";
+import alertsRouter from "./routes/alerts";
+import recentlyRouter from "./routes/recently";
+import compareRouter from "./routes/compare";
+import pushRouter from "./routes/push";
+import shiprocketRouter from "./routes/shiprocket";
+import siteContentRouter from "./routes/siteContent";
+import flashSalesRouter from "./routes/flashSales";
+import bundlesRouter from "./routes/bundles";
+import adminBundlesRouter from "./routes/adminBundles";
+import abandonedCartRouter from "./routes/abandonedCart";
 
 const app = express();
 
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// Fly.io / Render / Vercel front us with a single reverse proxy. Without
+// `trust proxy`, `req.ip` returns the proxy's internal IP for every
+// request, collapsing every per-IP bucket (global API limiter at /api,
+// per-(IP,campaign) ad impression/click limiters in routes/ads.ts, etc.)
+// into a single shared bucket — trivially exhausted by legitimate traffic
+// or an attacker. Trusting a single hop is the right setting here: the
+// cloud provider strips client-forged X-Forwarded-For before the proxy
+// appends the real client IP, so express-rate-limit sees the real IP and
+// refuses to run unless trust proxy is explicitly configured anyway.
+app.set("trust proxy", 1);
+
+// Tighten security headers. HSTS forces HTTPS for 6 months (only effective
+// when the deploy is already on HTTPS — Render/Fly/Vercel always are).
+// crossOriginResourcePolicy disabled so /uploads (images) can be embedded by
+// the storefront origin. CSP for the API is conservative — JSON-only API,
+// no inline JS/CSS executed by browsers from these responses (root landing
+// HTML sets its own narrow inline-style allowance via helmet defaults).
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "script-src": ["'self'"],
+        "connect-src": ["'self'", "https:"],
+        "frame-ancestors": ["'none'"],
+      },
+    },
+    hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  }),
+);
+app.disable("x-powered-by");
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN?.split(",") ?? "*",
+    // `||` (not `??`) so an empty / whitespace-only env var falls back to
+    // the hardcoded allowlist instead of `[]` (which would block every
+    // browser origin and silently brick the API).
+    origin:
+      (process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN)
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .length
+        ? (process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN)!
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [
+            "https://sktmart.online",
+            "https://www.sktmart.online",
+            "https://sktmartstore.in",
+            "https://www.sktmartstore.in",
+            "https://sktmart.vercel.app",
+            "https://skt-mart.vercel.app",
+            "https://sktmart-online.vercel.app",
+            "https://sktmart-shop.vercel.app",
+            "https://sktmart-store.vercel.app",
+            "https://shopsktmart.vercel.app",
+            "https://sktmart-in.vercel.app",
+            "https://web-ra-ram.vercel.app",
+            "http://localhost:3000",
+          ],
     credentials: true,
   }),
 );
@@ -37,23 +121,90 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
+// Global API limiter — protects against generic flood. Authenticated callers
+// hitting normal endpoints comfortably stay under this; runaway scrapers /
+// botnets get cut off.
 app.use(
   "/api",
   rateLimit({
     windowMs: 60_000,
-    max: 300,
+    max: 600,
     standardHeaders: true,
     legacyHeaders: false,
   }),
 );
+
+// Strict per-route limiters for credential & OTP endpoints. These are the
+// brute-force surfaces (password guessing, OTP enumeration, reset-token
+// harvesting). 10 / 5 min per IP is well above any human flow but stops
+// automated attempts cold. `/api/auth/google` is excluded because it carries
+// a Google-issued ID token already vetted by their infra.
+const authStrictLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in a few minutes." },
+});
+app.use("/api/auth/login", authStrictLimiter);
+app.use("/api/auth/register", authStrictLimiter);
+app.use("/api/auth/forgot-password", authStrictLimiter);
+app.use("/api/auth/reset-password", authStrictLimiter);
+app.use("/api/auth/send-otp", authStrictLimiter);
+app.use("/api/auth/verify-otp", authStrictLimiter);
 
 app.use(
   "/uploads",
   express.static(path.resolve(process.env.UPLOAD_DIR ?? "./uploads")),
 );
 
-app.get("/api/health", (_req, res) => {
+app.get(["/health", "/api/health"], (_req, res) => {
   res.json({ ok: true, service: "skt-mart-api", time: new Date().toISOString() });
+});
+
+// Root landing — clarifies this host is the API; points browsers to the web app.
+const htmlAttrEscape = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+app.get("/", (_req, res) => {
+  const rawUrl = process.env.WEB_URL ?? "https://web-ra-ram.vercel.app";
+  // Only allow http(s) URLs; reject javascript:/data: schemes even if an
+  // operator mis-sets WEB_URL. Fall back to the public web app if invalid.
+  const webUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : "https://web-ra-ram.vercel.app";
+  const safeUrl = htmlAttrEscape(webUrl);
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SKT Mart API</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1220;color:#e6edf3;display:flex;min-height:100vh;align-items:center;justify-content:center}
+    .card{max-width:640px;padding:40px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    h1{margin:0 0 8px;font-size:28px;background:linear-gradient(90deg,#ffd814,#ff9900);-webkit-background-clip:text;background-clip:text;color:transparent}
+    p{margin:8px 0;color:#9aa7b8;line-height:1.55}
+    .btn{display:inline-block;margin-top:18px;padding:12px 22px;background:linear-gradient(90deg,#2874f0,#7b4bff);color:#fff;text-decoration:none;border-radius:10px;font-weight:600}
+    code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;font-size:12px}
+    ul{color:#9aa7b8;font-size:13px;line-height:1.8;padding-left:18px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SKT Mart — Backend API</h1>
+    <p>Ye backend hai. User-facing shopping site kholne ke liye neeche click karo 👇</p>
+    <a class="btn" href="${safeUrl}">Open SKT Mart Web App →</a>
+    <p style="margin-top:24px;font-size:13px">Endpoints: <code>/health</code>, <code>/api/products</code>, <code>/api/categories</code>, <code>/api/auth/login</code>, <code>/sitemap.xml</code></p>
+    <ul>
+      <li>Status: <code>${new Date().toISOString()}</code></li>
+      <li>Docs: all routes under <code>/api/*</code></li>
+    </ul>
+  </div>
+</body></html>`);
 });
 
 app.use("/api/auth", authRouter);
@@ -66,12 +217,79 @@ app.use("/api/orders", orderRouter);
 app.use("/api/reviews", reviewRouter);
 app.use("/api/coupons", couponRouter);
 app.use("/api/banners", bannerRouter);
+app.use("/api/brands", brandsRouter);
 app.use("/api/pincodes", pincodeRouter);
 app.use("/api/vendor", vendorRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/payments", paymentRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/images", imagesRouter);
 app.use("/api/search", searchRouter);
+app.use("/api/settings", settingsRouter);
+app.use("/api/wallet", walletRouter);
+app.use("/api/ads", adsRouter);
+app.use("/api/payouts", payoutsRouter);
+app.use("/api/returns", returnsRouter);
+app.use("/api/notifications", notificationsRouter);
+app.use("/api/loyalty", loyaltyRouter);
+app.use("/api/referral", referralRouter);
+app.use("/api/giftcards", giftcardsRouter);
+app.use("/api/qa", qaRouter);
+app.use("/api/alerts", alertsRouter);
+app.use("/api/recently-viewed", recentlyRouter);
+app.use("/api/compare", compareRouter);
+app.use("/api/push", pushRouter);
+app.use("/api/shiprocket", shiprocketRouter);
+app.use("/api/site-content", siteContentRouter);
+app.use("/api/flash-sales", flashSalesRouter);
+app.use("/api/bundles", bundlesRouter);
+app.use("/api/admin/bundles", adminBundlesRouter);
+app.use("/api/abandoned-cart", abandonedCartRouter);
+
+// Sitemap & robots
+app.get("/sitemap.xml", async (_req, res, next) => {
+  try {
+    const { prisma } = await import("./lib/prisma");
+    const products = await prisma.product.findMany({
+      where: { published: true },
+      select: { slug: true, updatedAt: true },
+      take: 5000,
+    });
+    const cats = await prisma.category.findMany({ select: { slug: true } });
+    const base = process.env.PUBLIC_URL ?? "https://sktmart.com";
+    const urls = [
+      `${base}/`,
+      `${base}/about`,
+      `${base}/contact`,
+      `${base}/privacy-policy`,
+      `${base}/return-policy`,
+      `${base}/terms`,
+      `${base}/shipping-policy`,
+      `${base}/refund-policy`,
+      ...cats.map((c) => `${base}/category/${c.slug}`),
+      ...products.map((p) => `${base}/product/${p.slug}`),
+    ];
+    const escXml = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    res.set("Content-Type", "application/xml");
+    res.send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+        .map((u) => `  <url><loc>${escXml(u)}</loc></url>`)
+        .join("\n")}\n</urlset>`,
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nSitemap: ${process.env.PUBLIC_URL ?? "https://sktmart.com"}/sitemap.xml\n`);
+});
 
 app.use(errorHandler);
 
@@ -79,3 +297,19 @@ const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
   console.log(`[skt-mart-api] listening on http://localhost:${port}`);
 });
+
+// Self keep-alive: Render free-tier sleeps after 15 min idle, causing
+// 30-50s cold starts for the next user. Ping our own /health every 10 min
+// so the dyno stays warm. SELF_URL is the public URL (set on Render to
+// https://skt-mart-api.onrender.com); skipped in dev (NODE_ENV !== production).
+if (process.env.NODE_ENV === "production" && process.env.SELF_URL) {
+  const selfUrl = process.env.SELF_URL.replace(/\/+$/, "");
+  setInterval(
+    () => {
+      fetch(`${selfUrl}/health`, { method: "GET" })
+        .then((r) => r.ok || console.warn("[keep-alive] non-OK", r.status))
+        .catch((e) => console.warn("[keep-alive] error", e?.message));
+    },
+    10 * 60 * 1000,
+  );
+}

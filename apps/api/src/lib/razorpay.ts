@@ -23,5 +23,20 @@ export function verifyRazorpaySignature(
     .createHmac("sha256", secret)
     .update(`${orderId}|${paymentId}`)
     .digest("hex");
-  return expected === signature;
+  // Constant-time compare: JS `===` short-circuits on first mismatch and
+  // leaks character-by-character timing, allowing an attacker to iteratively
+  // brute-force the HMAC across many rate-limited probes. Compare as UTF-8
+  // bytes (not hex-decoded) so a malformed hex signature with non-[0-9a-f]
+  // chars is rejected cleanly by the length check rather than silently
+  // truncating via Buffer.from(..., "hex"). Length pre-check is required —
+  // timingSafeEqual throws on unequal-length buffers.
+  if (expected.length !== signature.length) return false;
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, "utf8"),
+      Buffer.from(signature, "utf8"),
+    );
+  } catch {
+    return false;
+  }
 }
